@@ -10,6 +10,11 @@ const nextConfig: NextConfig = {
         source: "/textures/:path*",
         headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }],
       },
+      {
+        // Offline town tiles: the path is versioned, so a file never changes.
+        source: "/places/:path*",
+        headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }],
+      },
     ];
   },
 };

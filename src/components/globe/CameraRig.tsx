@@ -15,6 +15,14 @@ export const HOME_DIST = 3.7;
 const HALF_FOV_TAN = Math.tan((35 / 2) * (Math.PI / 180));
 
 /** Distance at which the globe fills ~86% of the free area (viewport minus sidebar and forecast deck). */
+/** Pin gestures (Watched, src/globe/pin.ts): a mouse press that moves further than this is a drag… */
+const PIN_CLICK_SLOP_PX = 5;
+/** …or one held longer than this is a grab, not a click. */
+const PIN_CLICK_MAX_MS = 600;
+/** A finger held still this long drops a pin, "still" meaning within PIN_HOLD_SLOP_PX. */
+const PIN_HOLD_MS = 450;
+const PIN_HOLD_SLOP_PX = 9;
+
 export function homeDistance(width: number, height: number, sidebarOffset: number, bottomOffset = 0, topOffset = 0) {
   const free = Math.min(Math.max(200, height - bottomOffset - topOffset), Math.max(320, width - sidebarOffset));
   const radiusPx = 0.43 * free;
@@ -137,20 +145,57 @@ export function CameraRig({
       raf = requestAnimationFrame(() => {
         const p = pick(e);
         useAppStore.getState().setHover(p);
-        el.style.cursor = p && !useAppStore.getState().entered ? "crosshair" : "";
+        el.style.cursor = p ? "crosshair" : "";
       });
     };
     const onLeave = () => useAppStore.getState().setHover(null);
-    // Landing: a click (not a drag) on the planet drops a pin there and enters.
-    let down: { x: number; y: number } | null = null;
-    const onDown = (e: PointerEvent) => (down = { x: e.clientX, y: e.clientY });
-    const onClick = (e: MouseEvent) => {
+    // Clicks on the planet (Watched's pin gestures): a mouse click that isn't a drag — or a finger held still for
+    // HOLD_MS — drops a pin whose card names the nearest town; a click on space clears it. On the intro screen a
+    // click picks the spot outright and enters.
+    let down: { x: number; y: number; at: number; mouse: boolean; ok: boolean } | null = null;
+    let hold = 0;
+    const onDown = (e: PointerEvent) => {
+      clearTimeout(hold);
+      const mouse = e.pointerType === "mouse";
+      down = { x: e.clientX, y: e.clientY, at: performance.now(), mouse, ok: e.button === 0 && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey };
       const st = useAppStore.getState();
-      if (st.entered || !st.globeReady || !down || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 5) return;
+      if (!mouse && st.entered && e.isPrimary) {
+        const start = down;
+        hold = window.setTimeout(() => {
+          if (down !== start) return;
+          const p = pick(e);
+          if (p) useAppStore.getState().dropPin(p);
+          down = null; // the finger's release is not also a click
+        }, PIN_HOLD_MS);
+      }
+    };
+    const onPointerMove = (e: PointerEvent) => {
+      if (down && !down.mouse && Math.hypot(e.clientX - down.x, e.clientY - down.y) > PIN_HOLD_SLOP_PX) {
+        clearTimeout(hold);
+        down = null;
+      }
+    };
+    const onUp = (e: PointerEvent) => {
+      clearTimeout(hold);
+      const d = down;
+      down = null;
+      if (!d || !d.ok || Math.hypot(e.clientX - d.x, e.clientY - d.y) > PIN_CLICK_SLOP_PX || performance.now() - d.at > PIN_CLICK_MAX_MS) return;
+      const st = useAppStore.getState();
+      if (!st.globeReady) return;
       const p = pick(e);
-      if (!p) return;
-      selectCoordinates(p);
-      st.enter();
+      if (!st.entered) {
+        if (!p) return;
+        selectCoordinates(p);
+        st.enter();
+        return;
+      }
+      if (!d.mouse) return; // touch drops pins by holding; a quick tap does nothing
+      if (p) st.dropPin(p);
+      else st.clearPin();
+    };
+    const onCancel = () => {
+      clearTimeout(hold);
+      down = null;
     };
     const onDbl = (e: MouseEvent) => {
       const p = pick(e);
@@ -162,10 +207,15 @@ export function CameraRig({
     el.addEventListener("pointerleave", onLeave);
     el.addEventListener("dblclick", onDbl);
     el.addEventListener("pointerdown", onDown);
-    el.addEventListener("click", onClick);
+    el.addEventListener("pointermove", onPointerMove);
+    el.addEventListener("pointerup", onUp);
+    el.addEventListener("pointercancel", onCancel);
     return () => {
+      clearTimeout(hold);
       el.removeEventListener("pointerdown", onDown);
-      el.removeEventListener("click", onClick);
+      el.removeEventListener("pointermove", onPointerMove);
+      el.removeEventListener("pointerup", onUp);
+      el.removeEventListener("pointercancel", onCancel);
       cancelAnimationFrame(raf);
       el.removeEventListener("pointermove", onMove);
       el.removeEventListener("pointerleave", onLeave);

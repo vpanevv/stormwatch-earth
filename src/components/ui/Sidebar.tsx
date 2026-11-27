@@ -59,7 +59,7 @@ export function Sidebar() {
       </div>
       <footer className="border-t border-line px-5 py-2.5 font-mono text-[9px] leading-relaxed tracking-[0.06em] text-faint">
         Weather: Open-Meteo{owm ? " · OpenWeather" : ""} · Radar: RainViewer ·
-        Geocoding: Open-Meteo, Nominatim · Map data © OpenStreetMap contributors · Imagery: NASA GIBS · Earth textures ©
+        Geocoding: Open-Meteo, Nominatim, Photon, GeoNames · Map data © OpenStreetMap contributors · Imagery: NASA GIBS · Earth textures ©
         Solar System Scope (CC BY 4.0), modified · Lightning &amp; storm cells simulated
       </footer>
     </div>

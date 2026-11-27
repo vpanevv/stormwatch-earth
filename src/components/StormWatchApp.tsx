@@ -18,6 +18,7 @@ import { AboutDialog } from "./ui/AboutDialog";
 import { ForecastDeck } from "./ui/ForecastDeck";
 import { IconClose, IconPanel } from "./ui/icons";
 import { MarkerLabel } from "./ui/MarkerLabel";
+import { PinCard } from "./ui/PinCard";
 import { ShareDialog } from "./ui/ShareDialog";
 
 // WebGL never renders on the server; the globe bundle loads after first paint.
@@ -100,14 +101,21 @@ export function StormWatchApp() {
   const deckShown = !selection ? (desktop ? 172 : 200) : deckCollapsed ? DECK_COLLAPSED : deckH;
   const bottomOffset = desktop ? TIMELINE_H + GAP * 3 + deckShown : 80 + deckShown + 8;
   const topOffset = desktop ? 100 : 200;
+  const sidebarOffset = desktop ? SIDEBAR_W + GAP * 2 : 0;
+
+  // Overlays on the globe (the dropped pin's card) keep clear of these.
+  useEffect(() => {
+    useAppStore.getState().setUiInsets({ top: desktop ? 150 : 200, right: sidebarOffset, bottom: bottomOffset, left: 0 });
+  }, [desktop, sidebarOffset, bottomOffset]);
 
   return (
     <main className="fixed inset-0 overflow-hidden bg-void">
       <div className="absolute inset-0">
-        <GlobeCanvas sidebarOffset={desktop ? SIDEBAR_W + GAP * 2 : 0} bottomOffset={bottomOffset} topOffset={topOffset} />
+        <GlobeCanvas sidebarOffset={sidebarOffset} bottomOffset={bottomOffset} topOffset={topOffset} />
       </div>
       <div className="tick-grid pointer-events-none absolute inset-0" />
       <MarkerLabel />
+      {entered && <PinCard />}
 
       {entered &&
         (desktop ? (

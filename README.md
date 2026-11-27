@@ -54,6 +54,10 @@ Each panel and legend has a source badge: green for live, amber for simulated or
 ## Controls
 
 - **Drag** to rotate (with inertia), **scroll** to zoom, **double-click** to lock onto a point.
+- **Click** the globe (or hold a finger still on it) to drop a pin: a card names the nearest town, shows the weather
+  there, and its orange arrow (or Enter) opens that town's forecast. × or Esc removes it; a click on space does too.
+  The town comes from an offline GeoNames list (each town's reach grows with its population), else from Photon reverse
+  geocoding, hedged with Nominatim when Photon is slow — the same logic as [Watched](https://github.com/dev-Armaan/satellites)'s pins.
 - **Search** a city, region or country, or type coordinates (`41.8831, 23.4673`, `41.88N 23.47E`).
 - **Use my location** asks for browser geolocation.
 - **Timeline**: play the last 24 h at ×1 / ×5 / ×10, scrub, step, or jump back to live.
@@ -74,4 +78,7 @@ the regional context patch) are adapted here. The elevation map used by the clim
 [NASA GIBS](https://www.earthdata.nasa.gov/gibs) (Blue Marble Next Generation; VIIRS on NOAA-20 / Suomi NPP).
 Type: Instrument Sans and Instrument Serif (SIL OFL 1.1, via Fontsource) and Geist (SIL OFL 1.1).
 Radar is © [RainViewer](https://www.rainviewer.com/). Map data is © OpenStreetMap contributors.
-Weather data is from [Open-Meteo](https://open-meteo.com/) (free tier is non-commercial). Geocoding uses Nominatim (1 req/s policy, enforced server-side).
+Weather data is from [Open-Meteo](https://open-meteo.com/) (free tier is non-commercial). Geocoding uses Nominatim (1 req/s policy, enforced server-side)
+and [Photon](https://photon.komoot.io/) (komoot, OpenStreetMap data). The offline town list for dropped pins
+(`public/places/`) is from [GeoNames](https://www.geonames.org/) ([CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)),
+as tiled by Watched (MIT, © 2026 Armaan Gupta); its nearest-town logic is adapted in `src/lib/places/`.

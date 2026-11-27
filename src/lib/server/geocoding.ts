@@ -85,39 +85,92 @@ export async function searchPlaces(q: string): Promise<{ places: Place[]; source
 }
 
 type NomReverse = { display_name?: string; name?: string; address?: Record<string, string>; error?: string };
+type PhotonReverse = {
+  features?: {
+    properties?: { name?: string; city?: string; town?: string; village?: string; county?: string; state?: string; country?: string; countrycode?: string; type?: string };
+  }[];
+};
+type Reverse = { place: Place | null; source: "photon" | "nominatim" | "mock" };
 
-export async function reverseGeocode(lat: number, lon: number): Promise<{ place: Place | null; source: "nominatim" | "mock" }> {
+/** How long Photon has to answer before Nominatim is asked as well (Watched: REVERSE_HEDGE_MS). */
+const REVERSE_HEDGE_MS = 1_200;
+
+/**
+ * Reverse geocoding, as Watched does it: Photon (komoot, OSM data, no rate limit to speak of) first; if it hasn't
+ * answered in 1.2 s, Nominatim is asked too (throttled to 1 req/s) and whichever names the spot first wins.
+ * `place: null` means neither knows a name there (open sea).
+ */
+export async function reverseGeocode(lat: number, lon: number): Promise<Reverse> {
+  const photon = photonReverse(lat, lon)
+    .then((place) => (place ? ({ place, source: "photon" } as const) : null))
+    .catch(() => null);
+  const quick = await Promise.race([photon, new Promise<undefined>((r) => setTimeout(() => r(undefined), REVERSE_HEDGE_MS))]);
+  if (quick) return quick;
+  // Photon is slow, or knows no name here: ask Nominatim too, and take the first that names the spot.
+  const nominatim = nominatimReverse(lat, lon)
+    .then((place) => (place ? ({ place, source: "nominatim" } as const) : null))
+    .catch(() => null);
+  return (await firstNamed<Reverse>([photon, nominatim])) ?? { place: null, source: "photon" };
+}
+
+/** The first promise to resolve to a value; null once all resolved to null. */
+function firstNamed<T>(ps: Promise<T | null>[]): Promise<T | null> {
+  return new Promise((resolve) => {
+    let left = ps.length;
+    for (const p of ps)
+      p.then((v) => {
+        if (v) resolve(v);
+        else if (--left === 0) resolve(null);
+      });
+  });
+}
+
+async function photonReverse(lat: number, lon: number): Promise<Place | null> {
+  const d = await fetchJson<PhotonReverse>(
+    `https://photon.komoot.io/reverse?${new URLSearchParams({ lat: String(lat), lon: String(lon), lang: "en", limit: "1" })}`,
+    { headers: { "User-Agent": UA }, revalidate: 86_400, timeoutMs: 6_000 },
+  );
+  const f = d.features?.[0]?.properties;
+  if (!f) return null;
+  const name = f.city || f.town || f.village || f.name || f.county || f.state;
+  if (!name) return null;
+  return {
+    id: `rev-${lat.toFixed(4)}-${lon.toFixed(4)}`,
+    name,
+    context: [f.state, f.country].filter((x) => x && x !== name).join(", "),
+    kind: "place",
+    lat,
+    lon,
+    countryCode: f.countrycode?.toUpperCase(),
+  };
+}
+
+async function nominatimReverse(lat: number, lon: number): Promise<Place | null> {
   const key = `r:${lat.toFixed(3)},${lon.toFixed(3)}`;
-  try {
-    const d = (await nominatimQueue(key, () =>
-      fetchJson<NomReverse>(
-        `https://nominatim.openstreetmap.org/reverse?${new URLSearchParams({
-          lat: String(lat),
-          lon: String(lon),
-          format: "jsonv2",
-          zoom: "10",
-        })}`,
-        { headers: { "User-Agent": UA, "Accept-Language": "en" }, revalidate: 86_400 },
-      ),
-    )) as NomReverse;
-    if (d.error || !d.address) return { place: null, source: "nominatim" };
-    const a = d.address;
-    const name = a.city || a.town || a.village || a.municipality || a.county || a.state || d.name || "Unnamed area";
-    return {
-      place: {
-        id: `rev-${lat.toFixed(4)}-${lon.toFixed(4)}`,
-        name,
-        context: [a.state, a.country].filter((x) => x && x !== name).join(", "),
-        kind: "place",
-        lat,
-        lon,
-        countryCode: a.country_code?.toUpperCase(),
-      },
-      source: "nominatim",
-    };
-  } catch {
-    return { place: null, source: "mock" };
-  }
+  const d = (await nominatimQueue(key, () =>
+    fetchJson<NomReverse>(
+      `https://nominatim.openstreetmap.org/reverse?${new URLSearchParams({
+        lat: String(lat),
+        lon: String(lon),
+        format: "jsonv2",
+        zoom: "10",
+      })}`,
+      { headers: { "User-Agent": UA, "Accept-Language": "en" }, revalidate: 86_400 },
+    ),
+  )) as NomReverse;
+  if (d.error || !d.address) return null;
+  const a = d.address;
+  const name = a.city || a.town || a.village || a.municipality || a.county || a.state || d.name;
+  if (!name) return null;
+  return {
+    id: `rev-${lat.toFixed(4)}-${lon.toFixed(4)}`,
+    name,
+    context: [a.state, a.country].filter((x) => x && x !== name).join(", "),
+    kind: "place",
+    lat,
+    lon,
+    countryCode: a.country_code?.toUpperCase(),
+  };
 }
 
 function featureKind(code?: string): PlaceKind {

@@ -63,7 +63,13 @@ type State = {
   configReady: boolean;
   shareOpen: boolean;
   aboutOpen: boolean;
+  /** A pin dropped by clicking the globe (Watched-style): its card names the nearest town and offers its weather. */
+  pin: DroppedPin | null;
+  /** Screen space the UI panels cover (CSS px), so overlays on the globe stay clear of them. */
+  uiInsets: { top: number; right: number; bottom: number; left: number };
 };
+
+export type DroppedPin = { id: number; lat: number; lon: number };
 
 type Actions = {
   setConfig: (c: AppConfig) => void;
@@ -92,6 +98,9 @@ type Actions = {
   enter: () => void;
   setShareOpen: (b: boolean) => void;
   setAboutOpen: (b: boolean) => void;
+  dropPin: (p: LatLon) => void;
+  clearPin: () => void;
+  setUiInsets: (i: State["uiInsets"]) => void;
 };
 
 export const useAppStore = create<State & Actions>()((set, get) => ({
@@ -119,10 +128,13 @@ export const useAppStore = create<State & Actions>()((set, get) => ({
   configReady: false,
   shareOpen: false,
   aboutOpen: false,
+  pin: null,
+  uiInsets: { top: 0, right: 0, bottom: 0, left: 0 },
 
   setConfig: (config) => set({ config, configReady: true }),
   select: (selection, opts) => {
-    set({ selection });
+    // Choosing a place (search, quick pick, a pin's arrow) ends any dropped pin.
+    set({ selection, pin: null });
     if (selection && opts?.fly !== false) get().flyTo(selection, opts?.distance);
   },
   flyTo: (p, distance) => set({ fly: { lat: p.lat, lon: p.lon, distance, nonce: Date.now() } }),
@@ -177,6 +189,12 @@ export const useAppStore = create<State & Actions>()((set, get) => ({
   enter: () => set({ entered: true }),
   setShareOpen: (shareOpen) => set({ shareOpen }),
   setAboutOpen: (aboutOpen) => set({ aboutOpen }),
+  dropPin: (p) => set({ pin: { id: Date.now(), lat: Math.round(p.lat * 1e5) / 1e5, lon: Math.round(p.lon * 1e5) / 1e5 } }),
+  clearPin: () => set({ pin: null }),
+  setUiInsets: (uiInsets) => {
+    const c = get().uiInsets;
+    if (c.top !== uiInsets.top || c.right !== uiInsets.right || c.bottom !== uiInsets.bottom || c.left !== uiInsets.left) set({ uiInsets });
+  },
 }));
 
 /**

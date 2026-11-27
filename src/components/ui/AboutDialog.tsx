@@ -229,7 +229,8 @@ function AboutView({ onClose }: { onClose: () => void }) {
                 <li>Earth textures © Solar System Scope, CC BY 4.0 (from NASA Blue Marble / Black Marble), modified.</li>
                 <li>Globe shading and page design adapted from Watched by Armaan Gupta (MIT).</li>
                 <li>Imagery: NASA GIBS / EOSDIS. Radar: RainViewer. Weather: Open-Meteo.</li>
-                <li>Map data © OpenStreetMap contributors. Geocoding: Nominatim, Open-Meteo.</li>
+                <li>Map data © OpenStreetMap contributors. Geocoding: Nominatim, Photon, Open-Meteo.</li>
+                <li>Town names for dropped pins: GeoNames, CC BY 4.0 (tiled by Watched, MIT).</li>
                 <li>Type: Instrument Sans and Instrument Serif (SIL OFL), Geist.</li>
               </ul>
             </Section>
@@ -241,7 +242,9 @@ function AboutView({ onClose }: { onClose: () => void }) {
                   ["↑ ↓ ↵", "Move through suggestions, choose"],
                   ["?", "Open or close this page"],
                   ["Esc", "Close"],
-                  ["Drag · scroll", "Turn and zoom the globe; double-click to drop a pin"],
+                  ["Drag · scroll", "Turn and zoom the globe; double-click to lock onto a point"],
+                  ["Click", "Drop a pin: it names the nearest town and shows its weather"],
+                  ["Enter · Esc", "Open the pin's forecast · remove the pin"],
                 ].map(([k, v]) => (
                   <div key={k} className="contents">
                     <dt>

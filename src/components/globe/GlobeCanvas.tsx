@@ -16,6 +16,7 @@ import { StormLayer } from "./StormLayer";
 import { TemperatureLayer } from "./TemperatureLayer";
 import { WindLayer } from "./WindLayer";
 import { LocationMarker } from "./LocationMarker";
+import { PinMarker } from "./PinMarker";
 import { Graticule } from "./Graticule";
 import { Sun } from "./Sun";
 import { CameraRig, HOME_DIST } from "./CameraRig";
@@ -68,6 +69,7 @@ export default function GlobeCanvas({
         <StormLayer enabled={layers.storms} />
         <LightningLayer enabled={layers.lightning} />
         <LocationMarker />
+        <PinMarker />
         <Atmosphere />
       </Suspense>
       <CameraRig sidebarOffset={sidebarOffset} bottomOffset={bottomOffset} topOffset={topOffset} />
