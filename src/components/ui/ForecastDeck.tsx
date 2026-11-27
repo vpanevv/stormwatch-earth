@@ -5,7 +5,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import * as THREE from "three";
 import type { HourlyPoint, WeatherBundle } from "@/types/weather";
 import { useAppStore } from "@/store/useAppStore";
-import { codeGlyph, describeCode } from "@/lib/weatherCodes";
+import { codeGlyph, describeCode, isSnowCode } from "@/lib/weatherCodes";
 import { compass, formatLat, formatLon, latLonToVec3 } from "@/lib/geo";
 import { sunDirection } from "@/lib/sun";
 import { fmtDate, fmtDay, fmtTime } from "@/lib/format";
@@ -25,12 +25,14 @@ export function ForecastDeck({ collapsed, onToggle, compact = false }: { collaps
   const w = weather.data;
   const [tab, setTab] = useState<Tab>("48h");
 
+  // Falling flakes only while it is snowing now, so they never contradict the condition label.
   const snowIntensity = useMemo(() => {
     if (!w) return 0;
-    const soon = w.hourly.filter((h) => h.time >= Date.now() - HOUR && h.time <= Date.now() + 6 * HOUR);
-    const peak = Math.max(w.current.snowfall, ...soon.map((h) => h.snowfall));
-    const snowyCode = w.current.weatherCode >= 71 && w.current.weatherCode <= 86;
-    return peak > 0 || snowyCode ? THREE.MathUtils.clamp(0.3 + peak / 2, 0.3, 1) : 0;
+    const now = Date.now();
+    const thisHour = w.hourly.filter((h) => h.time > now - HOUR && h.time <= now);
+    const rate = Math.max(w.current.snowfall, ...thisHour.map((h) => h.snowfall));
+    const snowing = isSnowCode(w.current.weatherCode) || w.current.snowfall >= 0.1;
+    return snowing ? THREE.MathUtils.clamp(0.3 + rate / 2, 0.3, 1) : 0;
   }, [w]);
 
   return (
@@ -199,7 +201,7 @@ function HourlyStrip({ w }: { w: WeatherBundle }) {
   return (
     <div className="scroll-thin -mx-1 flex shrink-0 gap-1 overflow-x-auto px-1 pt-2">
       {hrs.map((h, i) => {
-        const snow = h.snowfall > 0;
+        const snow = isSnowCode(h.weatherCode) || h.snowfall >= 0.1;
         return (
           <div
             key={h.time}

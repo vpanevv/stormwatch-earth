@@ -1,4 +1,5 @@
 import type { HourlyPoint, WeatherWarning } from "@/types/weather";
+import { isSnowCode } from "./weatherCodes";
 
 /**
  * Derives watch/warning style alerts from forecast thresholds.
@@ -83,7 +84,7 @@ export function deriveWarnings(hourly: HourlyPoint[], now = Date.now()): Weather
     });
   }
 
-  const snow = span((h) => h.snowfall >= 1 || (h.weatherCode >= 71 && h.weatherCode <= 86 && h.precipitation >= 1.5));
+  const snow = span((h) => h.snowfall >= 1 || (isSnowCode(h.weatherCode) && h.precipitation >= 1.5));
   if (snow) {
     const total = snow.hits.reduce((s, h) => s + h.snowfall, 0);
     const max = Math.max(...snow.hits.map((h) => h.snowfall));

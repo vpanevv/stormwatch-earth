@@ -42,6 +42,11 @@ export function isPrecipCode(code: number) {
   return code >= 51;
 }
 
+/** WMO snow codes: 71–77 (snowfall, snow grains) and 85–86 (snow showers). 80–82 are rain showers. */
+export function isSnowCode(code: number) {
+  return (code >= 71 && code <= 77) || code === 85 || code === 86;
+}
+
 /** Single-glyph icon. Kept as text so the UI stays thin and typographic. */
 export function codeGlyph(code: number, isDay = true) {
   if (code === 0) return isDay ? "☀" : "☾";
