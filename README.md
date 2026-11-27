@@ -17,7 +17,7 @@
 <p align="center">
   <a href="https://stormwatchearth.netlify.app"><b>stormwatchearth.netlify.app</b></a>
   <br>
-  <sub>Next.js · React Three Fiber · Open-Meteo · RainViewer · NASA GIBS</sub>
+  <sub>Next.js · React Three Fiber · Open-Meteo · RainViewer · NASA GIBS · MIT licensed</sub>
 </p>
 
 <p align="center">
@@ -195,6 +195,11 @@ docs/               architecture and the images on this page
 | Fonts | Instrument Sans and Instrument Serif by Instrument, Geist by Vercel (SIL OFL 1.1). |
 
 Every bundled asset's license is in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+## License
+
+Code under the [MIT License](LICENSE), © 2026 vpanevv. Weather data, radar, imagery, textures, the place list and
+fonts keep their own terms, listed above and in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 <br>
 
