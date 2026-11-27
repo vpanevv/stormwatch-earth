@@ -7,5 +7,5 @@ export async function GET(req: NextRequest) {
   const mode = req.nextUrl.searchParams.get("mode") === "search" ? "search" : "suggest";
   if (q.length < 2) return NextResponse.json({ places: [], source: "mock" });
   const result = mode === "search" ? await searchPlaces(q) : await suggestPlaces(q);
-  return NextResponse.json(result, { headers: { "Cache-Control": "public, max-age=3600" } });
+  return NextResponse.json(result, { headers: { "Cache-Control": "public, max-age=3600", "Netlify-Vary": "query=q|mode" } });
 }

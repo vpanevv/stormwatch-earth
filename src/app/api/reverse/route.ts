@@ -9,5 +9,5 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "lat/lon required" }, { status: 400 });
   }
   const result = await reverseGeocode(lat, lon);
-  return NextResponse.json(result, { headers: { "Cache-Control": "public, max-age=86400" } });
+  return NextResponse.json(result, { headers: { "Cache-Control": "public, max-age=86400", "Netlify-Vary": "query=lat|lon" } });
 }

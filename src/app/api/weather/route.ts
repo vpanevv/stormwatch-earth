@@ -48,7 +48,9 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // Netlify's CDN drops the query string from its cache key unless told otherwise;
+  // without Netlify-Vary every place would get the first place's weather.
   return NextResponse.json(bundle, {
-    headers: { "Cache-Control": "public, max-age=120, stale-while-revalidate=600" },
+    headers: { "Cache-Control": "public, max-age=120, stale-while-revalidate=600", "Netlify-Vary": "query=lat|lon" },
   });
 }
