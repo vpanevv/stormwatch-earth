@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useAppStore } from "@/store/useAppStore";
 import { fmtDate, fmtRelative, fmtTime } from "@/lib/format";
+import { AppMark } from "./AppMark";
 
 export function TopBar({ compact = false }: { compact?: boolean }) {
   const live = useAppStore((s) => s.live);
@@ -18,12 +19,7 @@ export function TopBar({ compact = false }: { compact?: boolean }) {
   return (
     <header className="pointer-events-none select-none">
       <div className="flex items-center gap-3">
-        <svg width={compact ? 22 : 28} height={compact ? 22 : 28} viewBox="0 0 32 32" aria-hidden className="text-accent">
-          <circle cx="16" cy="16" r="11" fill="none" stroke="currentColor" strokeWidth="1" />
-          <ellipse cx="16" cy="16" rx="11" ry="4.2" fill="none" stroke="currentColor" strokeWidth="0.8" opacity="0.6" />
-          <path d="M16 5v22" stroke="currentColor" strokeWidth="0.8" opacity="0.6" />
-          <path d="M17.5 9.5 13.5 17h3.5l-1.5 6 4.5-8h-3.5l1-5.5Z" fill="currentColor" />
-        </svg>
+        <AppMark size={compact ? 26 : 36} title="StormWatch Earth" />
         <div className="pointer-events-auto">
           <div className={`${compact ? "text-[12px] tracking-[0.28em]" : "text-[15px] tracking-[0.42em]"} whitespace-nowrap font-light uppercase text-ink`}>
             StormWatch<span className="text-accent"> / </span>Earth

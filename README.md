@@ -62,6 +62,16 @@ Each panel and legend has a source badge: green for live, amber for simulated or
 - **Use my location** asks for browser geolocation.
 - **Timeline**: play the last 24 h at ×1 / ×5 / ×10, scrub, step, or jump back to live.
 
+## Brand and link previews
+
+- **App icon**: one source, `public/brand/stormwatch-icon.svg` (a planet under a cyclone, a strike from its eye, the
+  app's radar-lock brackets). `npm run icons` builds the favicon (`src/app/icon.svg`, `favicon.ico`), the Apple touch
+  icon and the manifest icons from it. In the UI it is `<AppMark/>` (`src/components/ui/AppMark.tsx`), and the share
+  PNG draws `/brand/icon-192.png`.
+- **Open Graph card** (Facebook, LinkedIn, X, Slack): `src/app/opengraph-image.tsx`, 1200×630, rendered at build time.
+  The planet in it is a still made from the app's textures by `npm run og:globe` (`scripts/render-og-globe.mjs`).
+  Previews need absolute URLs: the base is `NEXT_PUBLIC_SITE_URL`, else Netlify's `URL`.
+
 ## Docs
 
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md): system diagram, provider chain, component hierarchy,

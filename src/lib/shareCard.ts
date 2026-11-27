@@ -33,6 +33,9 @@ function gibsUrl(layer: string, time: string, lat: number, lon: number, px: numb
   return `${GIBS}?${q}`;
 }
 
+/** The app icon (scripts/build-icons.mjs), same origin so the canvas stays exportable. */
+const APP_ICON = "/brand/icon-192.png";
+
 function loadImage(url: string) {
   return new Promise<HTMLImageElement>((resolve, reject) => {
     const img = new Image();
@@ -200,12 +203,16 @@ export async function renderShareCard(place: Place, w: WeatherBundle, orbit: Orb
 
   // ── right: the forecast
   const X = S + 48, R = CARD_W - 48;
+  // App icon + wordmark
+  const mark = await loadImage(APP_ICON).catch(() => null);
+  const WX = mark ? X + 48 : X;
+  if (mark) ctx.drawImage(mark, X, 44, 38, 38);
   ctx.fillStyle = BONE;
   ctx.font = `300 28px ${sans}`;
-  ctx.fillText("StormWatch", X, 74);
+  ctx.fillText("StormWatch", WX, 74);
   const wm = ctx.measureText("StormWatch").width;
   ctx.fillStyle = ACCENT;
-  ctx.fillText(".", X + wm + 1, 74);
+  ctx.fillText(".", WX + wm + 1, 74);
   ctx.fillStyle = MUTE;
   ctx.font = `400 12px ${mono}`;
   tracked(ctx, `${fmtDate(Date.now(), w.utcOffsetSeconds).toUpperCase()} · ${fmtTime(Date.now(), w.utcOffsetSeconds)} LOCAL`, R, 72, 1.6, "right");

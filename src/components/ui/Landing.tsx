@@ -11,6 +11,7 @@ import { subsolarPoint } from "@/lib/sun";
 import { fmtInt } from "@/lib/format";
 import { IconCrosshair, IconSearch } from "./icons";
 import { KIND_LABEL } from "./SearchPanel";
+import { AppMark } from "./AppMark";
 
 /**
  * The welcome page: an editorial hero over a slowly turning planet (layout and motion language after
@@ -176,8 +177,11 @@ function LandingView() {
       {/* top bar */}
       <header className="pointer-events-auto absolute inset-x-6 top-5 flex items-start justify-between lg:inset-x-12 lg:top-7">
         <div>
-          <div className="font-serif text-[30px] leading-none text-ink">
-            StormWatch<span className="text-accent">.</span>
+          <div className="flex items-center gap-3 font-serif text-[30px] leading-none text-ink">
+            <AppMark size={40} title="StormWatch Earth" className="-my-1 shrink-0" />
+            <span>
+              StormWatch<span className="text-accent">.</span>
+            </span>
           </div>
           <nav className="mt-2.5 flex items-center gap-3 whitespace-nowrap font-mono text-[11px] uppercase tracking-[0.16em] text-mute">
             <button onClick={() => setAboutOpen(true)} className="flex items-center gap-2 uppercase transition-colors hover:text-ink">

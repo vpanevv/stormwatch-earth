@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useAppStore } from "@/store/useAppStore";
+import { AppMark } from "./AppMark";
 
 /**
  * "How this works": a full-height reading overlay (after Watched's About page, MIT): an ink curtain drops in,
@@ -103,7 +104,8 @@ function AboutView({ onClose }: { onClose: () => void }) {
       transition={{ duration: 0.45, ease }}
     >
       <div className="flex items-center justify-between border-b border-white/10 px-6 py-4 lg:px-12">
-        <div className="flex items-baseline gap-3">
+        <div className="flex items-center gap-3">
+          <AppMark size={30} />
           <span className="font-serif text-[24px] leading-none text-ink">
             StormWatch<span className="text-accent">.</span>
           </span>
