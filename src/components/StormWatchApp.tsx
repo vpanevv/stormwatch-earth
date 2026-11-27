@@ -100,12 +100,12 @@ export function StormWatchApp() {
   // With no place yet, the deck is a compact picker; with one, it's the full forecast.
   const deckShown = !selection ? (desktop ? 172 : 200) : deckCollapsed ? DECK_COLLAPSED : deckH;
   const bottomOffset = desktop ? TIMELINE_H + GAP * 3 + deckShown : 80 + deckShown + 8;
-  const topOffset = desktop ? 100 : 200;
+  const topOffset = desktop ? 136 : 200;
   const sidebarOffset = desktop ? SIDEBAR_W + GAP * 2 : 0;
 
   // Overlays on the globe (the dropped pin's card) keep clear of these.
   useEffect(() => {
-    useAppStore.getState().setUiInsets({ top: desktop ? 150 : 200, right: sidebarOffset, bottom: bottomOffset, left: 0 });
+    useAppStore.getState().setUiInsets({ top: desktop ? 186 : 200, right: sidebarOffset, bottom: bottomOffset, left: 0 });
   }, [desktop, sidebarOffset, bottomOffset]);
 
   return (
@@ -126,7 +126,7 @@ export function StormWatchApp() {
             <motion.div
               {...chrome}
               transition={{ delay: 0.75 }}
-              className="absolute left-6 top-[98px]"
+              className="absolute left-6 top-[132px]"
               style={{ right: SIDEBAR_W + GAP * 3 }}
             >
               <LayerRail />

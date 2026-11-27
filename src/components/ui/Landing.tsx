@@ -11,7 +11,7 @@ import { subsolarPoint } from "@/lib/sun";
 import { fmtInt } from "@/lib/format";
 import { IconCrosshair, IconSearch } from "./icons";
 import { KIND_LABEL } from "./SearchPanel";
-import { AppMark } from "./AppMark";
+import { Brand, Divider } from "./Brand";
 
 /**
  * The welcome page: an editorial hero over a slowly turning planet (layout and motion language after
@@ -87,7 +87,6 @@ export function Landing() {
 
 function LandingView() {
   const enter = useAppStore((s) => s.enter);
-  const setAboutOpen = useAppStore((s) => s.setAboutOpen);
   const globeReady = useAppStore((s) => s.globeReady);
   const radarIdx = useAppStore((s) => s.radar.data);
   const storms = useAppStore((s) => s.storms);
@@ -176,25 +175,13 @@ function LandingView() {
 
       {/* top bar */}
       <header className="pointer-events-auto absolute inset-x-6 top-5 flex items-start justify-between lg:inset-x-12 lg:top-7">
-        <div>
-          <div className="flex items-center gap-3 font-serif text-[30px] leading-none text-ink">
-            <AppMark size={40} title="StormWatch Earth" className="-my-1 shrink-0" />
-            <span>
-              StormWatch<span className="text-accent">.</span>
-            </span>
-          </div>
-          <nav className="mt-2.5 flex items-center gap-3 whitespace-nowrap font-mono text-[11px] uppercase tracking-[0.16em] text-mute">
-            <button onClick={() => setAboutOpen(true)} className="flex items-center gap-2 uppercase transition-colors hover:text-ink">
-              How this works
-              <kbd className="flex h-5 w-5 items-center justify-center border border-white/25 text-[10px] text-ink">?</kbd>
-            </button>
-            <span className="h-3 w-px bg-white/20" />
-            <button onClick={enter} disabled={!globeReady} className="uppercase transition-colors hover:text-ink disabled:opacity-40">
-              <span className="sm:hidden">Explore ↗</span>
-              <span className="hidden sm:inline">Explore the globe ↗</span>
-            </button>
-          </nav>
-        </div>
+        <Brand>
+          <Divider />
+          <button onClick={enter} disabled={!globeReady} className="uppercase transition-colors hover:text-accent disabled:opacity-40">
+            <span className="sm:hidden">Explore ↗</span>
+            <span className="hidden sm:inline">Explore the globe ↗</span>
+          </button>
+        </Brand>
         <div className="hidden font-mono text-[13px] tracking-[0.1em] text-mute sm:block">
           {d.toISOString().slice(0, 10)} <span className="text-ink">{d.toISOString().slice(11, 19)}</span> UTC
         </div>

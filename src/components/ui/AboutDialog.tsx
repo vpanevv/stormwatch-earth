@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useAppStore } from "@/store/useAppStore";
-import { AppMark } from "./AppMark";
+import { REPO_URL } from "./Brand";
 
 /**
  * "How this works": a full-height reading overlay (after Watched's About page, MIT): an ink curtain drops in,
@@ -104,8 +104,7 @@ function AboutView({ onClose }: { onClose: () => void }) {
       transition={{ duration: 0.45, ease }}
     >
       <div className="flex items-center justify-between border-b border-white/10 px-6 py-4 lg:px-12">
-        <div className="flex items-center gap-3">
-          <AppMark size={30} />
+        <div className="flex items-baseline gap-3">
           <span className="font-serif text-[24px] leading-none text-ink">
             StormWatch<span className="text-accent">.</span>
           </span>
@@ -230,6 +229,12 @@ function AboutView({ onClose }: { onClose: () => void }) {
               <ul className="space-y-2 text-[15px] leading-relaxed text-[#a4acb6]">
                 <li>Earth textures © Solar System Scope, CC BY 4.0 (from NASA Blue Marble / Black Marble), modified.</li>
                 <li>Globe shading and page design adapted from Watched by Armaan Gupta (MIT).</li>
+                <li>
+                  Source code:{" "}
+                  <a href={REPO_URL} target="_blank" rel="noopener noreferrer" className="text-[#ece8e0] underline decoration-white/30 underline-offset-4 hover:text-[#ff7a1a]">
+                    github.com/vpanevv/stormwatch-earth
+                  </a>
+                </li>
                 <li>Imagery: NASA GIBS / EOSDIS. Radar: RainViewer. Weather: Open-Meteo.</li>
                 <li>Map data © OpenStreetMap contributors. Geocoding: Nominatim, Photon, Open-Meteo.</li>
                 <li>Town names for dropped pins: GeoNames, CC BY 4.0 (tiled by Watched, MIT).</li>

@@ -1,94 +1,203 @@
-# StormWatch Earth
+<p align="center">
+  <a href="https://stormwatchearth.netlify.app">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="public/brand/wordmark.png">
+      <img src="public/brand/wordmark-ink.png" alt="StormWatch." width="260">
+    </picture>
+  </a>
+</p>
 
-A real-time weather observatory on an interactive 3D Earth. You can see live radar, clouds, lightning, wind and
-temperature, search any place, lock onto it, and play back the last 24 hours.
+<h3 align="center">Every storm, watched live from&nbsp;orbit.</h3>
 
-Built with Next.js 15, React 19, React Three Fiber, Drei, Zustand, Tailwind CSS 4, Framer Motion and MapLibre.
+<p align="center">
+  Pick any place on Earth. StormWatch shows its clouds, radar, snow and lightning on a live 3D planet, and the forecast for the next 7 days.<br>
+  Free, no sign-up, and no API keys needed to run it.
+</p>
 
-## What you get
+<p align="center">
+  <a href="https://stormwatchearth.netlify.app"><b>stormwatchearth.netlify.app</b></a>
+  <br>
+  <sub>Next.js · React Three Fiber · Open-Meteo · RainViewer · NASA GIBS</sub>
+</p>
 
-- **A welcome page** with an editorial hero over a slowly turning planet. Search a place (`/` focuses the field),
-  use your location, pick a suggestion or **Surprise me**, or click the globe to drop a pin. Each one dives straight in.
-  **How this works** (`?`) opens a full-page explainer covering data sources, how to read the globe, limits, privacy, credits and keys.
-  The layout and motion follow [Watched](https://github.com/dev-Armaan/satellites)'s landing (MIT).
-- **The forecast as the main view**: a large deck under the globe with the current conditions, 24 hourly cards, a
-  48-hour chart (temperature, rain, snow, cloud, night shading, a now line and the playback head, with hover read-outs) and 7-day cards.
-  Your last place is remembered.
-- **Snow throughout**: seasonal snow and sea-ice cover on the globe, worldwide falling snow (RainViewer's snow channel
-  plus modelled snowfall wherever it's below freezing), snowfall and snow depth in every panel, snowfall warnings,
-  and falling-snow particles on the forecast when it's snowing.
-- **A more realistic Earth**: reddened low sun, skylight and aerial haze, ocean Fresnel reflection and wave-broken sun glint,
-  cloud shadows offset toward the sun, puffy self-shadowed clouds with silver linings, Mie scattering on the limb,
-  an HDR sun, and bloom. Bloom switches off automatically on slow GPUs.
+<p align="center">
+  <a href="https://stormwatchearth.netlify.app">
+    <img src="docs/readme/landing.jpg" width="100%" alt="The StormWatch landing page. On the left, the wordmark with How this works and Open source links, the headline 'Every storm, watched live from orbit.', a search field with Use my location, and example places Razlog, Sofia, Tokyo and Surprise me. On the right, the globe over the Atlantic and Africa with live radar echoes over Europe and city lights on the night side.">
+  </a>
+  <br>
+  <sub>The landing page, 27 November 2026. <a href="https://stormwatchearth.netlify.app">Open it live</a>.</sub>
+</p>
 
-- **Share a forecast**: once a place is locked, **Share** renders a card with yesterday's real NASA VIIRS satellite pass
-  over the place (Blue Marble if the swath has gaps), the current conditions, rain and snow for the next 24 h, wind, cloud and a
-  5-day strip. You can copy the image, save it as a PNG, copy a link that reopens the place, or share natively on phones.
-- **HD globe**: an 8K day map is loaded progressively, and a sharp ~0.5 km/px NASA Blue Marble patch is painted in around the
-  selected place (detail only, so there's no visible square). The coarse global cloud layer thins out on close views. The
-  techniques are adapted from [Watched](https://github.com/dev-Armaan/satellites) (MIT).
+## What it does
 
-## Run it
+- **Shows the weather on the planet.** Live radar from RainViewer, clouds, snow cover and falling snow, lightning,
+  storm cells, temperature and wind, as layers you switch on and off on a photoreal Earth lit by the real sun.
+- **Makes the forecast the main view.** Lock onto a place and a wide deck opens under the globe: the conditions now,
+  24 hourly cards, a 48-hour chart of temperature, rain, snow and cloud, and 7 days ahead. Rain and snow fall across it
+  when they are falling there.
+- **Names any spot you click.** Click the globe (or hold a finger on it) to drop a pin: a card names the nearest town,
+  shows its weather, and opens its forecast.
+- **Plays back the last 24 hours.** A timeline replays the radar archive and the lightning at ×1, ×5 or ×10.
+- **Shares it.** Every forecast becomes a card with yesterday's real NASA satellite view of the place, to copy, save as
+  a PNG or send as a link.
 
-```bash
-npm install
-npm run dev        # http://localhost:3000
-```
+<p align="center">
+  <a href="https://stormwatchearth.netlify.app/?q=41.8831,23.4673&n=Razlog&c=Blagoevgrad,%20Bulgaria">
+    <img src="docs/readme/app.jpg" width="100%" alt="The app locked on Razlog, Bulgaria. Radar echoes over the Balkans and Italy, an orange radar-lock reticle on Razlog, the layer toolbar along the top and legends for precipitation, snowfall and lightning. The forecast deck below shows 10° and light rain, hourly cards and a 48-hour chart where the rain turns to snow on Sunday; the sidebar on the right lists cloud cover, humidity, wind, rain intensity and snow depth.">
+  </a>
+  <br>
+  <sub>Razlog, Bulgaria: rain today, turning to snow on Sunday. <a href="https://stormwatchearth.netlify.app/?q=41.8831,23.4673&n=Razlog&c=Blagoevgrad,%20Bulgaria">Open it live</a>.</sub>
+</p>
 
-It works with **no API keys**. Live data comes from Open-Meteo (conditions and forecast), RainViewer
-(radar), Open-Meteo and Nominatim (geocoding), and OpenStreetMap (local map). Copy `.env.example` to `.env.local` to
-enable OpenWeather (current conditions plus global cloud and temperature tiles).
+<p align="center">
+  <img src="docs/readme/phone.jpg" width="27%" alt="StormWatch on a phone: the wordmark and links at the top, a search box with quick places, the layer chips, the globe with the reticle on Razlog, and the forecast deck with hourly cards below.">
+  <img src="docs/readme/card.jpg" width="71%" alt="The share card for Razlog: yesterday's NOAA-20 VIIRS view of the place under cloud with an orange reticle and a 50 km scale bar on the left; on the right the app icon and wordmark, '10° · light rain in Razlog.', 14.7 cm of snow on Sunday, rain, snow, wind and cloud figures and a five-day strip.">
+  <br>
+  <sub>On a phone, and the card a shared forecast becomes.</sub>
+</p>
 
 ## What's live and what's simulated
 
-Each panel and legend has a source badge: green for live, amber for simulated or modelled.
+Every panel and legend carries a source badge, green for live and amber for modelled or simulated, so the two are
+never confused.
 
-| Live | Simulated / modelled |
-|---|---|
-| Current weather, hourly and 7-day forecast | Lightning strikes and storm cells (no public Blitzortung API, see `docs/ARCHITECTURE.md`) |
-| Radar precipitation, last ~2 h | Precipitation further back than the radar archive |
-| Local cloud cover at the selected place | Global cloud, temperature and wind fields (unless OpenWeather is keyed) |
-| Snowfall and snow depth for the selected place (Open-Meteo) and radar snow | Global snow cover and snowfall outside radar coverage (climate model) |
-| Geocoding, reverse geocoding | Weather warnings are *derived* from forecast thresholds, not official bulletins |
+| | Live | Modelled or simulated |
+|:--|:--|:--|
+| Forecast | Current conditions, 48 hours, 7 days (Open-Meteo) | Warnings are derived from forecast thresholds, not official bulletins |
+| Radar | Rain and snow echoes, the last ~2 hours (RainViewer) | Precipitation further back than the radar archive |
+| Clouds | Cloud cover at the selected place | The global cloud field, unless an OpenWeather key is set |
+| Snow | Snowfall and snow depth at the place, radar snow | Snow cover and snowfall elsewhere, from a climate model |
+| Lightning | | Strikes and storm cells: there is no free public lightning feed |
 
-## Controls
+**What it can't see.** Radar only exists where countries run it and share it, so oceans and much of Africa and Asia
+have none. The forecast is a model run, not an observation. The lightning is a stand-in drawn from where storms
+usually form; a licensed feed plugs in behind one interface.
 
-- **Drag** to rotate (with inertia), **scroll** to zoom, **double-click** to lock onto a point.
-- **Click** the globe (or hold a finger still on it) to drop a pin: a card names the nearest town, shows the weather
-  there, and its orange arrow (or Enter) opens that town's forecast. × or Esc removes it; a click on space does too.
-  The town comes from an offline GeoNames list (each town's reach grows with its population), else from Photon reverse
-  geocoding, hedged with Nominatim when Photon is slow — the same logic as [Watched](https://github.com/dev-Armaan/satellites)'s pins.
-- **Search** a city, region or country, or type coordinates (`41.8831, 23.4673`, `41.88N 23.47E`).
-- **Use my location** asks for browser geolocation.
-- **Timeline**: play the last 24 h at ×1 / ×5 / ×10, scrub, step, or jump back to live.
+## How it works
 
-## Brand and link previews
+TypeScript, Next.js 15 (App Router), React 19, three.js through React Three Fiber, Zustand, Tailwind CSS 4 and Framer
+Motion. Everything that moves runs in the browser; a few small Next.js route handlers proxy the weather and geocoding
+providers so their usage policies (and any key) stay on the server.
 
-- **App icon**: one source, `public/brand/stormwatch-icon.svg` (a planet under a cyclone, a strike from its eye, the
-  app's radar-lock brackets). `npm run icons` builds the favicon (`src/app/icon.svg`, `favicon.ico`), the Apple touch
-  icon and the manifest icons from it. In the UI it is `<AppMark/>` (`src/components/ui/AppMark.tsx`), and the share
-  PNG draws `/brand/icon-192.png`.
-- **Open Graph card** (Facebook, LinkedIn, X, Slack): `src/app/opengraph-image.tsx`, 1200×630, rendered at build time.
-  The planet in it is a still made from the app's textures by `npm run og:globe` (`scripts/render-og-globe.mjs`).
-  Previews need absolute URLs: the base is `NEXT_PUBLIC_SITE_URL`, else Netlify's `URL`.
+### Radar, decoded back to rain
 
-## Docs
+RainViewer's public API now serves one colour palette whatever you ask for. A Web Worker fetches a frame's tiles,
+stitches them into one texture, and decodes every pixel back to reflectivity (dBZ) in two channels, rain and snow.
+The globe then colours it with its own ramp, drops isolated speckle, and marks hail cores.
+[`src/lib/radar/decode.ts`](src/lib/radar/decode.ts)
 
-- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md): system diagram, provider chain, component hierarchy,
-  state design, rendering pipeline, API surface and next steps.
+### Snow everywhere, not just under radar
 
-## Credits
+A small climate model in the shaders estimates the temperature anywhere from latitude, season, time of day and real
+elevation. Below freezing, cloud and precipitation turn to snowfall, and the ground keeps a seasonal snow and sea-ice
+cover. Radar snow takes over wherever radar exists. [`src/components/globe/shaders/common.ts`](src/components/globe/shaders/common.ts)
 
-Earth day, night and cloud textures © [Solar System Scope](https://www.solarsystemscope.com/textures/), licensed
-[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/), based on NASA Blue Marble / Black Marble. They were resized,
-re-encoded and channel-packed by the [Watched](https://github.com/dev-Armaan/satellites) project (MIT, © 2026 Armaan Gupta),
-whose globe shading techniques (graded day map, bounded hill-shade, Fresnel glint, the thin exponential atmosphere, and
-the regional context patch) are adapted here. The elevation map used by the climate model is from
-[three-globe](https://github.com/vasturiano/three-globe) (MIT). The regional patches and share-card imagery come from
-[NASA GIBS](https://www.earthdata.nasa.gov/gibs) (Blue Marble Next Generation; VIIRS on NOAA-20 / Suomi NPP).
-Type: Instrument Sans and Instrument Serif (SIL OFL 1.1, via Fontsource) and Geist (SIL OFL 1.1).
-Radar is © [RainViewer](https://www.rainviewer.com/). Map data is © OpenStreetMap contributors.
-Weather data is from [Open-Meteo](https://open-meteo.com/) (free tier is non-commercial). Geocoding uses Nominatim (1 req/s policy, enforced server-side)
-and [Photon](https://photon.komoot.io/) (komoot, OpenStreetMap data). The offline town list for dropped pins
-(`public/places/`) is from [GeoNames](https://www.geonames.org/) ([CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)),
-as tiled by Watched (MIT, © 2026 Armaan Gupta); its nearest-town logic is adapted in `src/lib/places/`.
+### A sharper planet where you look
+
+The day map streams in from 4K to 8K. Around the selected place a ~0.5 km/px NASA Blue Marble patch from GIBS is
+painted in as detail only, so the planet gets sharper there with no visible square. Hill-shade, ocean glint and a
+thin exponential atmosphere follow [Watched](https://github.com/dev-Armaan/satellites)'s globe.
+[`src/components/globe/Earth.tsx`](src/components/globe/Earth.tsx)
+
+### The nearest town, offline
+
+A dropped pin is named from an offline list of 225,000 GeoNames towns in 5° tiles; only the tiles around the spot
+are fetched. Each town's reach grows with its population (2 km for a village, 16 km for a city of a million), and the
+pin takes the town that reaches it best. Open sea and desert fall back to Photon, with Nominatim asked as well if
+Photon is slow. The logic is Watched's. [`src/lib/places/nearest.ts`](src/lib/places/nearest.ts)
+
+### One clock, no re-renders per frame
+
+Playback time lives in a mutable clock that every layer reads in its render loop; React hears about it about 15 times
+a second. Lightning strikes sit in a ring buffer of typed arrays, and only the new ones are uploaded to the GPU.
+[`src/components/globe/TimeDriver.tsx`](src/components/globe/TimeDriver.tsx)
+
+More in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md): the provider chain, the component tree, the state design and
+the rendering pipeline.
+
+## Privacy
+
+- **No accounts, no analytics, no cookies.** Your last place is kept in your own browser's local storage.
+- **Places go to the providers.** A forecast or a name lookup sends the place's coordinates, or your search, through
+  this app's server to Open-Meteo, Nominatim or Photon. Radar, map and satellite tiles load straight from RainViewer,
+  OpenStreetMap and NASA.
+- **Mostly offline names.** Clicking the globe names the spot from a list that ships with the site.
+- **Your location stays your choice.** *Use my location* asks the browser each time, and the position is only used to
+  look up that place's weather.
+
+## Run it locally
+
+Node 20 or newer.
+
+```bash
+git clone https://github.com/vpanevv/stormwatch-earth.git
+cd stormwatch-earth
+npm install
+npm run dev
+```
+
+That's the whole app at `http://localhost:3000`, with no configuration. To use OpenWeather for current conditions and
+global cloud and temperature tiles, copy `.env.example` to `.env.local` and set `OPENWEATHER_API_KEY`; the key stays on
+the server.
+
+```bash
+npm run typecheck
+npm run build                      # production build (delete .next when switching between build and dev)
+npm start                          # serve the build
+
+npm run icons                      # rebuild the favicon and app icons from public/brand/stormwatch-icon.svg
+npm run og:globe                   # re-render the planet in the link-preview card
+node scripts/render-wordmark.mjs   # the wordmark images at the top of this page
+```
+
+| Variable | |
+|:--|:--|
+| `OPENWEATHER_API_KEY` | Optional. Live current conditions, cloud and temperature tiles from OpenWeather. |
+| `NOMINATIM_USER_AGENT` | Identifies the app to Nominatim, as its usage policy asks. |
+| `NEXT_PUBLIC_SITE_URL` | Optional. The site's address for link previews; on Netlify it defaults to the site's URL. |
+
+| URL | |
+|:--|:--|
+| `/?q=lat,lon&n=name&c=context` | Open a place, as a shared link does. |
+| `/opengraph-image` | The link-preview card. |
+
+It deploys to Netlify as is, with Netlify's Next.js runtime and no extra configuration.
+
+<details>
+<summary><b>Project layout</b></summary>
+
+```
+src/
+  app/              the page, link-preview card, icons, and the API routes (weather, geocode, reverse, radar, tiles)
+  components/
+    globe/          the three.js scene: Earth, atmosphere, clouds, radar, snow, lightning, storms, wind, pins, camera
+    ui/             landing, top bar, layer rail, forecast deck, sidebar, timeline, share and About pages
+  hooks/            data feeds (weather, radar, lightning) and place search
+  lib/              geo and sun maths, radar decoding, the lightning source, places, the share card, server providers
+  store/            the Zustand store and the playback clock
+scripts/            icons, the link-preview globe, the wordmark, the MapLibre worker copy
+public/             textures, the offline place list, brand assets
+docs/               architecture and the images on this page
+```
+
+</details>
+
+## Data and credits
+
+| Source | Credit |
+|:--|:--|
+| Weather | Forecast and current conditions from [Open-Meteo](https://open-meteo.com) ([CC BY 4.0](https://creativecommons.org/licenses/by/4.0/); the free tier is for non-commercial use). [OpenWeather](https://openweathermap.org) when a key is set. |
+| Radar | © [RainViewer](https://www.rainviewer.com). |
+| Imagery | NASA's [GIBS](https://www.earthdata.nasa.gov/gibs), part of EOSDIS: Blue Marble Next Generation, and VIIRS on NOAA-20 and Suomi NPP. |
+| Places | The offline town list is built from [GeoNames](https://www.geonames.org) ([CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)), as tiled by Watched. [Open-Meteo](https://open-meteo.com), [Photon](https://photon.komoot.io) by komoot and [Nominatim](https://nominatim.org) answer the rest. Map data © [OpenStreetMap contributors](https://www.openstreetmap.org/copyright) (ODbL). |
+| Textures | [Solar System Scope](https://www.solarsystemscope.com/textures/) ([CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)), from NASA Blue Marble and Black Marble; resized and repacked by Watched. Elevation from [three-globe](https://github.com/vasturiano/three-globe) (MIT). |
+| Design | The landing, the About page, the globe shading and the pins are adapted from [Watched](https://github.com/dev-Armaan/satellites) by Armaan Gupta (MIT). |
+| Fonts | Instrument Sans and Instrument Serif by Instrument, Geist by Vercel (SIL OFL 1.1). |
+
+Every bundled asset's license is in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+<br>
+
+<p align="center">
+  <sub>Made by <a href="https://github.com/vpanevv">@vpanevv</a></sub>
+</p>
