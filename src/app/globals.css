@@ -173,3 +173,21 @@ input[type="range"].scrubber:focus-visible {
     animation: none;
   }
 }
+
+/* Rain drops inside rainy hour cards (ForecastDeck › CardRain). */
+.rain-drop {
+  position: absolute;
+  top: -20px;
+  width: 1px;
+  border-radius: 1px;
+  background: linear-gradient(to bottom, rgba(168, 204, 255, 0), rgba(168, 204, 255, 0.9));
+  animation: rain-fall linear infinite;
+}
+@keyframes rain-fall {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(24px, 170px, 0) rotate(-8deg);
+  }
+}

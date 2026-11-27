@@ -47,6 +47,23 @@ export function isSnowCode(code: number) {
   return (code >= 71 && code <= 77) || code === 85 || code === 86;
 }
 
+/** WMO liquid-precipitation codes: drizzle and rain (51–67), rain showers (80–82), thunderstorms (95–99). */
+export function isRainCode(code: number) {
+  return (code >= 51 && code <= 67) || (code >= 80 && code <= 82) || code >= 95;
+}
+
+/**
+ * How hard an hour rains, 0..1 (0 = dry). Driven by the rain chance the forecast shows,
+ * nudged up by the expected amount so a sure drizzle stays lighter than a sure downpour.
+ */
+export function rainStrength(h: { weatherCode: number; precipitation: number; precipProbability: number; snowfall: number }) {
+  if (isSnowCode(h.weatherCode)) return 0;
+  const rainy = isRainCode(h.weatherCode) || h.precipitation - h.snowfall >= 0.1;
+  if (!rainy) return 0;
+  const chance = Math.max(h.precipProbability, isRainCode(h.weatherCode) ? 30 : 0) / 100;
+  return Math.min(1, Math.max(0.12, chance * 0.8 + Math.min(0.35, h.precipitation / 8)));
+}
+
 /** Single-glyph icon. Kept as text so the UI stays thin and typographic. */
 export function codeGlyph(code: number, isDay = true) {
   if (code === 0) return isDay ? "☀" : "☾";

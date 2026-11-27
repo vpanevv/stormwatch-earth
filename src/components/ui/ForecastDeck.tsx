@@ -5,7 +5,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import * as THREE from "three";
 import type { HourlyPoint, WeatherBundle } from "@/types/weather";
 import { useAppStore } from "@/store/useAppStore";
-import { codeGlyph, describeCode, isSnowCode } from "@/lib/weatherCodes";
+import { codeGlyph, describeCode, isSnowCode, rainStrength } from "@/lib/weatherCodes";
 import { compass, formatLat, formatLon, latLonToVec3 } from "@/lib/geo";
 import { sunDirection } from "@/lib/sun";
 import { fmtDate, fmtDay, fmtTime } from "@/lib/format";
@@ -14,6 +14,7 @@ import { selectPlace, useMyLocation } from "@/lib/actions";
 import { IconChevron, IconCrosshair, IconShare, IconDroplet, IconSnow, IconWind } from "./icons";
 import { Skeleton, SourceBadge } from "./primitives";
 import { SnowOverlay } from "./SnowOverlay";
+import { RainOverlay } from "./RainOverlay";
 
 type Tab = "48h" | "7d";
 const HOUR = 3_600_000;
@@ -35,8 +36,19 @@ export function ForecastDeck({ collapsed, onToggle, compact = false }: { collaps
     return snowing ? THREE.MathUtils.clamp(0.3 + rate / 2, 0.3, 1) : 0;
   }, [w]);
 
+  // Rain over the whole deck while the current hour shows rain; denser and faster as the chance rises.
+  const rainIntensity = useMemo(() => {
+    if (!w) return 0;
+    const nowHour = upcoming(w, 1)[0];
+    const c = w.current;
+    const fromNow = rainStrength({ weatherCode: c.weatherCode, precipitation: c.precipitation, snowfall: c.snowfall, precipProbability: nowHour?.precipProbability ?? 0 });
+    const fromHour = nowHour && !isSnowCode(c.weatherCode) ? rainStrength(nowHour) : 0;
+    return Math.max(fromNow, fromHour);
+  }, [w]);
+
   return (
     <section aria-label="Forecast" className="panel corner-brackets relative flex h-full min-h-0 flex-col overflow-hidden">
+      {rainIntensity > 0 && <RainOverlay intensity={rainIntensity} className="opacity-80" />}
       {snowIntensity > 0 && <SnowOverlay intensity={snowIntensity} className="opacity-70" />}
       {!selection ? (
         <EmptyDeck compact={compact} />
@@ -202,24 +214,26 @@ function HourlyStrip({ w }: { w: WeatherBundle }) {
     <div className="scroll-thin -mx-1 flex shrink-0 gap-1 overflow-x-auto px-1 pt-2">
       {hrs.map((h, i) => {
         const snow = isSnowCode(h.weatherCode) || h.snowfall >= 0.1;
+        const rain = rainStrength(h);
         return (
           <div
             key={h.time}
-            className={`flex min-w-[58px] flex-1 flex-col items-center gap-0.5 py-1.5 ${
+            className={`relative flex min-w-[58px] flex-1 flex-col items-center gap-0.5 overflow-hidden py-1.5 ${
               i === 0 ? "bg-accent/10 ring-1 ring-accent/30" : "bg-white/[0.03]"
             }`}
           >
-            <span className={`font-mono text-[10px] ${i === 0 ? "text-accent" : "text-mute"}`}>
+            {rain > 0 && <CardRain strength={rain} seed={h.time} />}
+            <span className={`relative font-mono text-[10px] ${i === 0 ? "text-accent" : "text-mute"}`}>
               {i === 0 ? "NOW" : fmtTime(h.time, w.utcOffsetSeconds)}
             </span>
-            <span className={`text-[20px] leading-none ${snow ? "text-sky-100" : "text-accent-soft"}`} title={describeCode(h.weatherCode)}>
+            <span className={`relative text-[20px] leading-none ${snow ? "text-sky-100" : "text-accent-soft"}`} title={describeCode(h.weatherCode)}>
               {codeGlyph(h.weatherCode, isDayAt(w, h.time))}
             </span>
-            <span className="text-[18px] font-light tabular-nums text-ink">{Math.round(h.temperature)}°</span>
+            <span className="relative text-[18px] font-light tabular-nums text-ink">{Math.round(h.temperature)}°</span>
             {snow ? (
-              <span className="font-mono text-[10px] text-sky-200">❄ {h.snowfall.toFixed(1)}</span>
+              <span className="relative font-mono text-[10px] text-sky-200">❄ {h.snowfall.toFixed(1)}</span>
             ) : (
-              <span className={`font-mono text-[10px] ${h.precipProbability >= 50 ? "text-sky-300" : "text-faint"}`}>
+              <span className={`relative font-mono text-[10px] ${h.precipProbability >= 50 ? "text-sky-300" : "text-faint"}`}>
                 {Math.round(h.precipProbability)}%
               </span>
             )}
@@ -227,6 +241,34 @@ function HourlyStrip({ w }: { w: WeatherBundle }) {
         );
       })}
     </div>
+  );
+}
+
+/**
+ * A few CSS-animated drops behind a rainy hour card. More drops, falling faster, as `strength`
+ * (from the hour's rain chance) rises. Positions are seeded by the hour so they don't jump on re-render.
+ */
+function CardRain({ strength, seed }: { strength: number; seed: number }) {
+  const count = Math.round(3 + strength * 11);
+  const duration = 1.15 - strength * 0.7; // seconds per fall: ~1.1 s drizzle → ~0.45 s downpour
+  let s = (seed / HOUR) % 2147483647 || 1;
+  const rand = () => ((s = (s * 16807) % 2147483647) - 1) / 2147483646;
+  return (
+    <span aria-hidden className="pointer-events-none absolute inset-0 motion-reduce:hidden">
+      {Array.from({ length: count }, (_, i) => (
+        <span
+          key={i}
+          className="rain-drop"
+          style={{
+            left: `${4 + rand() * 92}%`,
+            height: `${7 + rand() * 7 + strength * 5}px`,
+            opacity: 0.25 + rand() * 0.35,
+            animationDuration: `${duration * (0.85 + rand() * 0.3)}s`,
+            animationDelay: `${-rand() * duration}s`,
+          }}
+        />
+      ))}
+    </span>
   );
 }
 
