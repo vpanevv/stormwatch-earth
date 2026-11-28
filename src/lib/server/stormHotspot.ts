@@ -83,16 +83,32 @@ async function refine(c: Candidate): Promise<Candidate> {
 }
 
 let memo: { at: number; value: Promise<Hotspot> } | null = null;
+/** The last answer that had strikes: shown, with its own time, when a whole round comes back quiet. */
+let lastLively: Hotspot | null = null;
+const LIVELY_MAX_AGE_MS = 60 * 60_000;
 
-/** findHotspot, shared by concurrent and repeated calls within one server instance for HOTSPOT_REFRESH_S. */
+/**
+ * findHotspot, shared by concurrent and repeated calls within one server instance for HOTSPOT_REFRESH_S. A quiet
+ * round (every storm asked at zero) falls back to the last lively one from the past hour, still labelled with the
+ * time it was measured, so the landing always has a real number to show.
+ */
 export function cachedHotspot(): Promise<Hotspot> {
   if (memo && Date.now() - memo.at < HOTSPOT_REFRESH_S * 1000) return memo.value;
-  const value = findHotspot();
+  const value = findHotspot().then((h) => {
+    if (h.strikes.count > 0) lastLively = h;
+    else if (lastLively && Date.now() - lastLively.fetchedAt < LIVELY_MAX_AGE_MS) return { ...lastLively, tried: h.tried, conditions: h.conditions };
+    return h;
+  });
   memo = { at: Date.now(), value };
   value.catch(() => {
     if (memo?.value === value) memo = null;
   });
   return value;
+}
+
+/** "Storm at 10.0°N 145.0°E": a storm over the sea, where no geocoder has a name. */
+function coordName(lat: number, lon: number) {
+  return `Storm at ${Math.abs(lat).toFixed(1)}°${lat >= 0 ? "N" : "S"} ${Math.abs(lon).toFixed(1)}°${lon >= 0 ? "E" : "W"}`;
 }
 
 /**
@@ -129,6 +145,23 @@ const HOTSPOTS: { lat: number; lon: number }[] = [
   { lat: -27.5, lon: -58.8 }, // Corrientes
   { lat: -23.5, lon: -46.6 }, // São Paulo
   { lat: 45.4, lon: 10.9 }, // Po valley
+  { lat: 9.0, lon: 38.7 }, // Ethiopian highlands
+  { lat: -15.4, lon: 28.3 }, // Zambia
+  { lat: -12.0, lon: 17.0 }, // Angola
+  { lat: -6.8, lon: 37.0 }, // Tanzania
+  { lat: 4.0, lon: 11.5 }, // Cameroon
+  { lat: 7.0, lon: -1.6 }, // Ghana
+  { lat: 7.0, lon: 80.7 }, // Sri Lanka
+  { lat: 19.7, lon: 96.0 }, // Myanmar
+  { lat: 14.0, lon: 100.5 }, // Thailand
+  { lat: 22.6, lon: 88.4 }, // west Bengal
+  { lat: -16.0, lon: 145.0 }, // Queensland
+  { lat: -9.4, lon: 160.0 }, // Solomon Islands
+  { lat: -17.8, lon: 178.0 }, // Fiji
+  { lat: 14.6, lon: -90.5 }, // Guatemala
+  { lat: 9.9, lon: -84.0 }, // Costa Rica
+  { lat: 18.5, lon: -69.9 }, // Hispaniola
+  { lat: -15.8, lon: -47.9 }, // Brazilian highlands
 ];
 
 /** Storms peak in the late afternoon: hours from 16:00 local solar time, 0 (best) … 12. */
@@ -162,16 +195,29 @@ export async function findHotspot(): Promise<Hotspot> {
     console.warn("[lightning/hotspot] hotspot conditions unavailable, ranking by local time:", safeMessage(e));
     known = HOTSPOTS.map((h) => ({ ...h, code: 0, cape: 0, precip: 0, score: 0 })).sort((a, b) => fromAfternoon(a.lon) - fromAfternoon(b.lon));
   }
-  const stormy = grid.filter((c) => c.code >= 95).slice(0, 2);
-  // A thunderstorm cell first, then the hotspots (at most half the tries go to grid cells).
-  const queue: { cell: Candidate; refine: boolean; from: "thunderstorm" | "hotspot" }[] = [
-    ...stormy.slice(0, Math.ceil(MAX_XWEATHER_TRIES / 2)).map((cell) => ({ cell, refine: true, from: "thunderstorm" as const })),
-    ...known.slice(0, MAX_XWEATHER_TRIES).map((cell) => ({ cell, refine: false, from: "hotspot" as const })),
-  ].slice(0, MAX_XWEATHER_TRIES);
+  // Rank everything together. Real lightning follows the sun: storms peak in the late afternoon, so local time
+  // counts most, and the model's thunderstorm code, convective energy and rain add to it. (Ranking by the code alone
+  // picked night-time places: at 09:24 UTC it tried Maracaibo at 04:36 and the Amazon at 05:24, all quiet.)
+  const rank = (c: Candidate) => {
+    const sun = Math.max(0, 1 - fromAfternoon(c.lon) / 6); // 1 at 16:00 local, 0 beyond ±6 h
+    const model = (c.code >= 95 ? 0.6 : c.code >= 80 ? 0.25 : 0) + (Math.min(c.cape, 3000) / 3000) * (c.precip > 0 ? 0.4 : 0.1);
+    return sun * 1.2 + model;
+  };
+  const pool = [
+    ...grid.filter((c) => c.code >= 95).map((cell) => ({ cell, refine: true, from: "thunderstorm" as const })),
+    ...known.map((cell) => ({ cell, refine: false, from: "hotspot" as const })),
+  ].sort((x, y) => rank(y.cell) - rank(x.cell));
+  // Never ask twice about the same storm (Xweather counts within 100 km).
+  const queue: typeof pool = [];
+  for (const q of pool) {
+    if (queue.some((o) => Math.abs(o.cell.lat - q.cell.lat) < 3 && Math.abs(o.cell.lon - q.cell.lon) < 3)) continue;
+    queue.push(q);
+    if (queue.length >= MAX_XWEATHER_TRIES) break;
+  }
   const tried: Hotspot["tried"] = [];
 
   // 2. Strikes around each, in turn, until one has lightning; a failing candidate never sinks the rest.
-  let best: { point: Candidate; strikes: StrikeSummary } | null = null;
+  let best: { point: Candidate; strikes: StrikeSummary; from: "thunderstorm" | "hotspot" } | null = null;
   const errors: string[] = [];
   let refineOk = true;
   for (const { cell, refine: wantRefine, from } of queue) {
@@ -191,8 +237,10 @@ export async function findHotspot(): Promise<Hotspot> {
     try {
       const strikes = await strikeSummary(point.lat, point.lon);
       entry.strikes = strikes.count;
-      if (!best || strikes.count > best.strikes.count) best = { point, strikes };
-      if (strikes.count > 0) break;
+      // With every answer at zero, keep the best-ranked hotspot (a named place), not a grid cell over the sea.
+      // The storm with the most strikes wins; among quiet answers, a named hotspot over a grid cell at sea.
+      if (!best || strikes.count > best.strikes.count || (strikes.count === 0 && best.strikes.count === 0 && from === "hotspot" && best.from !== "hotspot"))
+        best = { point, strikes, from };
     } catch (e) {
       entry.error = safeMessage(e);
       errors.push(entry.error);
@@ -204,7 +252,7 @@ export async function findHotspot(): Promise<Hotspot> {
   const named = await reverseGeocode(point.lat, point.lon).catch(() => ({ place: null }));
   const place: Place = named.place
     ? { ...named.place, id: `storm-${point.lat.toFixed(2)},${point.lon.toFixed(2)}`, lat: point.lat, lon: point.lon }
-    : { id: `storm-${point.lat.toFixed(2)},${point.lon.toFixed(2)}`, name: "Open water", context: "Active storm", kind: "coords", lat: point.lat, lon: point.lon };
+    : { id: `storm-${point.lat.toFixed(2)},${point.lon.toFixed(2)}`, name: coordName(point.lat, point.lon), context: "Open sea", kind: "coords", lat: point.lat, lon: point.lon };
   return { place, strikes, thunderstormPoints, sampled, fetchedAt: Date.now(), tried, conditions };
 }
 
