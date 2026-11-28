@@ -4,6 +4,7 @@ import { fetchOpenMeteo } from "@/lib/server/openmeteo";
 import { fetchOpenWeatherCurrent, OWM_KEY } from "@/lib/server/openweather";
 import { mockWeather } from "@/lib/mock/weather";
 import { deriveWarnings } from "@/lib/warnings";
+import { readLatLon } from "@/lib/server/http";
 
 /**
  * GET /api/weather?lat=..&lon=..
@@ -11,12 +12,8 @@ import { deriveWarnings } from "@/lib/warnings";
  * Each section reports its own source so the UI can label it honestly.
  */
 export async function GET(req: NextRequest) {
-  const lat = Number(req.nextUrl.searchParams.get("lat"));
-  const lon = Number(req.nextUrl.searchParams.get("lon"));
-  if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) {
-    return NextResponse.json({ error: "lat/lon out of range" }, { status: 400 });
-  }
-  const p = { lat, lon };
+  const p = readLatLon(req.nextUrl.searchParams);
+  if (!p) return NextResponse.json({ error: "lat and lon are required and must be in range" }, { status: 400 });
   const now = Date.now();
 
   const [om, owm] = await Promise.allSettled([

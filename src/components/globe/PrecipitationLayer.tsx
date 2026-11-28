@@ -10,6 +10,7 @@ import { radar } from "@/lib/radar/manager";
 import { CLIMATE, COLOR, GEO, NOISE, PRECIP_RAMP, SIM_PRECIP } from "./shaders/common";
 import { RENDER_ORDER, shared } from "./uniforms";
 import { useLayerFade } from "./useLayerFade";
+import { LayerGroup } from "./LayerGroup";
 
 const vertex = /* glsl */ `
 varying vec2 vUv;
@@ -155,5 +156,9 @@ function Precipitation({ opacity }: { opacity: React.RefObject<number> }) {
 
 export function PrecipitationLayer({ enabled }: { enabled: boolean }) {
   const { mounted, opacity } = useLayerFade(enabled);
-  return mounted ? <Precipitation opacity={opacity} /> : null;
+  return mounted ? (
+    <LayerGroup opacity={opacity}>
+      <Precipitation opacity={opacity} />
+    </LayerGroup>
+  ) : null;
 }

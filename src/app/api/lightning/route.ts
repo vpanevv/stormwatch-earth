@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { readLatLon } from "@/lib/server/http";
 import { LIGHTNING_REFRESH_S, LIGHTNING_WINDOW_MIN, LightningUnavailable, XWEATHER_ON, strikeSummary } from "@/lib/server/xweather";
 
 /**
@@ -6,11 +7,9 @@ import { LIGHTNING_REFRESH_S, LIGHTNING_WINDOW_MIN, LightningUnavailable, XWEATH
  * Coordinates are rounded to 0.1° (~11 km) so nearby lookups share one cached Xweather request.
  */
 export async function GET(req: NextRequest) {
-  const lat = Number(req.nextUrl.searchParams.get("lat"));
-  const lon = Number(req.nextUrl.searchParams.get("lon"));
-  if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) {
-    return NextResponse.json({ error: "lat/lon out of range" }, { status: 400 });
-  }
+  const p = readLatLon(req.nextUrl.searchParams);
+  if (!p) return NextResponse.json({ error: "lat and lon are required and must be in range" }, { status: 400 });
+  const { lat, lon } = p;
   if (!XWEATHER_ON) return NextResponse.json({ available: false, reason: "not-configured" }, { headers: { "Cache-Control": "public, max-age=300" } });
   try {
     const strikes = await strikeSummary(Math.round(lat * 10) / 10, Math.round(lon * 10) / 10);

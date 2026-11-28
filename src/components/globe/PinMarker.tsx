@@ -94,7 +94,7 @@ export function PinMarker() {
     mesh.current.scale.setScalar(camera.position.distanceTo(mesh.current.position) * 0.06);
     const t = Math.min(1, (performance.now() - dropStart.current) / 420);
     material.uniforms.uDrop.value = 1 - Math.pow(1 - t, 3);
-    const facing = THREE.MathUtils.smoothstep(normal.dot(camera.position.clone().normalize()), 0.05, 0.25);
+    const facing = THREE.MathUtils.smoothstep(normal.dot(camera.position) / camera.position.length(), 0.05, 0.25);
     material.uniforms.uFacing.value = facing;
     projected.copy(mesh.current.position).project(camera);
     pinAnchor.x = ((projected.x + 1) / 2) * size.width;

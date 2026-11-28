@@ -3,14 +3,24 @@
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
-import { OrbitControls } from "@react-three/drei";
-import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
 import { useAppStore } from "@/store/useAppStore";
 import { EARTH_RADIUS_KM, latLonToVec3, vec3ToLatLon } from "@/lib/geo";
 import { selectCoordinates } from "@/lib/actions";
 
 const MIN_DIST = 1.2;
 const MAX_DIST = 10;
+const FOV = 35;
+/** Inertia after a throw decays with this time constant (s); holding still before release stops it faster. */
+const SPIN_TAU = 0.32;
+const HOLD_TAU = 0.05;
+/** Zoom eases toward its target with this time constant (s). */
+const ZOOM_TAU = 0.12;
+/** Auto-rotation, degrees of longitude per second, and how long it takes to ramp in after the last input. */
+const DRIFT_LANDING = 2.4;
+const DRIFT_APP = 1.2;
+const DRIFT_RAMP_S = 2.5;
+/** The camera's latitude is kept off the poles (north-up view). */
+const MAX_LAT = 82;
 export const HOME_DIST = 3.7;
 const HALF_FOV_TAN = Math.tan((35 / 2) * (Math.PI / 180));
 
@@ -42,10 +52,38 @@ type Flight = {
 
 const easeInOutCubic = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 const IDENTITY = new THREE.Quaternion();
+const _q = new THREE.Quaternion();
+const _v = new THREE.Vector3();
+const DEG = Math.PI / 180;
+
+/** User input accumulated between frames (Watched's controls.ts pattern): the frame loop consumes it. */
+type Input = { panX: number; panY: number; zoom: number; dragging: boolean; lastInputAt: number };
+/** Camera pose in north-up spherical terms: latitude/longitude under the camera (rad) and altitude above the surface. */
+type Pose = { lat: number; lon: number; alt: number };
+
+function poseFromCamera(cam: THREE.Camera, out: Pose): Pose {
+  const d = cam.position.length();
+  const ll = vec3ToLatLon(_v.copy(cam.position).divideScalar(d));
+  out.lat = ll.lat * DEG;
+  out.lon = ll.lon * DEG;
+  out.alt = d - 1;
+  return out;
+}
+
+function applyPose(cam: THREE.Camera, p: Pose) {
+  latLonToVec3(p.lat / DEG, p.lon / DEG, 1 + p.alt, cam.position);
+  cam.up.set(0, 1, 0);
+  cam.lookAt(0, 0, 0);
+}
 
 /**
- * Orbit controls with inertia, great-circle fly-to, idle auto-rotation,
- * pointer → lat/lon picking (analytic ray–sphere, no mesh raycasting) and double-click to focus.
+ * The globe's camera, modelled on Watched's direct-manipulation controls (src/globe/controls.ts):
+ *   drag            the surface follows the pointer at any zoom (radians per pixel from the altitude), with inertia
+ *   wheel / pinch   zoom in log altitude, eased (τ 0.12 s), wheel deltas normalised across mice and trackpads
+ *   flights         great-circle fly-to with distance interpolated in log space and a lift over long hops
+ *   idle            slow westward drift that ramps in after the last input
+ * plus pointer → lat/lon picking (analytic ray–sphere) for the hover read-out, pins and double-click focus.
+ * No React state changes per frame: altitude and hover reach the store a few times a second at most.
  */
 export function CameraRig({
   sidebarOffset,
@@ -56,8 +94,12 @@ export function CameraRig({
   bottomOffset: number;
   topOffset: number;
 }) {
-  const controls = useRef<OrbitControlsImpl>(null);
   const { camera, gl, size } = useThree();
+  const input = useRef<Input>({ panX: 0, panY: 0, zoom: 0, dragging: false, lastInputAt: 0 });
+  const pose = useRef<Pose>({ lat: 0, lon: 0, alt: 2 });
+  const spin = useRef({ lat: 0, lon: 0 });
+  const zoomTarget = useRef<number | null>(null);
+  const lastPublish = useRef(0);
   const flight = useRef<Flight | null>(null);
   const lastInteraction = useRef(performance.now());
   const lastAlt = useRef(0);
@@ -92,6 +134,7 @@ export function CameraRig({
     const dir = latLonToVec3(18, lon - 25).normalize();
     camera.position.copy(dir.multiplyScalar(landingDistance()));
     camera.lookAt(0, 0, 0);
+    poseFromCamera(camera, pose.current);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Back to the intro screen (the wordmark): pull out to the landing framing over the same spot.
@@ -155,9 +198,14 @@ export function CameraRig({
       raycaster.setFromCamera(ndc, camera);
       return raycaster.ray.intersectSphere(sphere, hit) ? vec3ToLatLon(hit) : null;
     };
+    // Hover read-out: picked at most ~12 times a second (it re-renders the HUD).
+    let lastHover = 0;
     const onMove = (e: PointerEvent) => {
       cancelAnimationFrame(raf);
       raf = requestAnimationFrame(() => {
+        const now = performance.now();
+        if (now - lastHover < 80) return;
+        lastHover = now;
         const p = pick(e);
         useAppStore.getState().setHover(p);
         el.style.cursor = p ? "crosshair" : "";
@@ -238,37 +286,165 @@ export function CameraRig({
     };
   }, [gl, camera]);
 
-  useFrame(() => {
-    const c = controls.current;
+  // Dev-only debugging handle, next to window.__stormwatch.
+  useEffect(() => {
+    if (process.env.NODE_ENV !== "production") (window as unknown as { __camera?: THREE.Camera }).__camera = camera;
+  }, [camera]);
+
+  // Direct-manipulation input (Watched's controls.ts): listeners only accumulate; the frame loop applies it.
+  useEffect(() => {
+    const el = gl.domElement;
+    el.style.touchAction = "none";
+    const pointers = new Map<number, { x: number; y: number }>();
+    let pinch = 0;
+    const inp = input.current;
+    const touch = () => {
+      inp.lastInputAt = performance.now();
+      lastInteraction.current = inp.lastInputAt;
+      flight.current = null; // any gesture takes the camera back from a flight
+    };
+    const onDown = (e: PointerEvent) => {
+      if (e.pointerType === "mouse" && e.button !== 0) return;
+      el.setPointerCapture?.(e.pointerId);
+      pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pointers.size === 2) {
+        const [a, b] = [...pointers.values()];
+        pinch = Math.hypot(a.x - b.x, a.y - b.y);
+      }
+      inp.dragging = true;
+      touch();
+    };
+    const onMove = (e: PointerEvent) => {
+      const pt = pointers.get(e.pointerId);
+      if (!pt) return;
+      const dx = e.clientX - pt.x, dy = e.clientY - pt.y;
+      pt.x = e.clientX;
+      pt.y = e.clientY;
+      if (pointers.size >= 2) {
+        const [a, b] = [...pointers.values()];
+        const d = Math.hypot(a.x - b.x, a.y - b.y);
+        if (pinch > 0 && d > 0 && useAppStore.getState().entered) inp.zoom += Math.log(pinch / d);
+        pinch = d;
+        inp.panX += dx / 2;
+        inp.panY += dy / 2;
+      } else {
+        inp.panX += dx;
+        inp.panY += dy;
+      }
+      touch();
+    };
+    const onUp = (e: PointerEvent) => {
+      if (!pointers.delete(e.pointerId)) return;
+      if (pointers.size < 2) pinch = 0;
+      if (pointers.size === 0) inp.dragging = false;
+      inp.lastInputAt = performance.now();
+      lastInteraction.current = inp.lastInputAt;
+    };
+    const onWheel = (e: WheelEvent) => {
+      if (!useAppStore.getState().entered) return; // the landing doesn't zoom
+      e.preventDefault();
+      const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1;
+      inp.zoom += THREE.MathUtils.clamp(e.deltaY * unit, -240, 240) * 0.0016;
+      touch();
+    };
+    const onContext = (e: Event) => e.preventDefault();
+    el.addEventListener("pointerdown", onDown);
+    el.addEventListener("pointermove", onMove);
+    el.addEventListener("pointerup", onUp);
+    el.addEventListener("pointercancel", onUp);
+    el.addEventListener("wheel", onWheel, { passive: false });
+    el.addEventListener("contextmenu", onContext);
+    return () => {
+      el.removeEventListener("pointerdown", onDown);
+      el.removeEventListener("pointermove", onMove);
+      el.removeEventListener("pointerup", onUp);
+      el.removeEventListener("pointercancel", onUp);
+      el.removeEventListener("wheel", onWheel);
+      el.removeEventListener("contextmenu", onContext);
+    };
+  }, [gl]);
+
+  useFrame((_, delta) => {
+    const dt = Math.min(delta, 0.1);
+    const s = useAppStore.getState();
     const f = flight.current;
-    if (f && c) {
+    const P = pose.current;
+    const inp = input.current;
+
+    if (f) {
       const t = Math.min(1, (performance.now() - f.start) / f.duration);
       const e = easeInOutCubic(t);
-      const q = IDENTITY.clone().slerp(f.q, e);
-      const dir = f.from.clone().applyQuaternion(q);
-      const dist = THREE.MathUtils.lerp(f.fromDist, f.toDist, e) + Math.sin(Math.PI * e) * f.arc;
-      camera.position.copy(dir.multiplyScalar(dist));
+      _q.copy(IDENTITY).slerp(f.q, e);
+      _v.copy(f.from).applyQuaternion(_q);
+      // Distance in log space (even apparent speed from orbit to street level), lifted over long hops.
+      const a0 = Math.log(f.fromDist - 1), a1 = Math.log(f.toDist - 1);
+      const dist = 1 + Math.exp(a0 + (a1 - a0) * e) + Math.sin(Math.PI * e) * f.arc;
+      camera.position.copy(_v.multiplyScalar(dist));
+      camera.up.set(0, 1, 0);
       camera.lookAt(0, 0, 0);
-      c.enabled = false;
-      if (t >= 1) {
-        flight.current = null;
-        c.enabled = true;
+      poseFromCamera(camera, P);
+      spin.current.lat = spin.current.lon = 0;
+      zoomTarget.current = null;
+      inp.panX = inp.panY = inp.zoom = 0;
+      if (t >= 1) flight.current = null;
+    } else {
+      // Pan: the surface under the pointer follows it. Radians per pixel at the sub-camera point.
+      const k = (P.alt * 2 * Math.tan((FOV / 2) * DEG)) / Math.max(1, size.height);
+      const sp = spin.current;
+      if (inp.panX !== 0 || inp.panY !== 0) {
+        const dLon = (-inp.panX * k) / Math.max(0.2, Math.cos(P.lat));
+        const dLat = inp.panY * k;
+        P.lon += dLon;
+        P.lat += dLat;
+        const w = Math.min(1, dt / 0.05);
+        sp.lon = sp.lon * (1 - w) + (dLon / Math.max(dt, 1 / 240)) * w;
+        sp.lat = sp.lat * (1 - w) + (dLat / Math.max(dt, 1 / 240)) * w;
+        inp.panX = inp.panY = 0;
+      } else if (!inp.dragging && (sp.lat !== 0 || sp.lon !== 0)) {
+        P.lon += sp.lon * dt;
+        P.lat += sp.lat * dt;
+        const decay = Math.exp(-dt / SPIN_TAU);
+        sp.lon *= decay;
+        sp.lat *= decay;
+        if (Math.abs(sp.lon) + Math.abs(sp.lat) < 1e-4) sp.lon = sp.lat = 0;
+      } else if (inp.dragging) {
+        const decay = Math.exp(-dt / HOLD_TAU); // holding still stops the throw
+        sp.lon *= decay;
+        sp.lat *= decay;
       }
-      c.update();
+
+      // Zoom: ease log altitude toward the accumulated target.
+      const minA = Math.log(MIN_DIST - 1), maxA = Math.log(MAX_DIST - 1);
+      if (inp.zoom !== 0) {
+        zoomTarget.current = THREE.MathUtils.clamp((zoomTarget.current ?? Math.log(P.alt)) + inp.zoom, minA, maxA);
+        inp.zoom = 0;
+      }
+      if (zoomTarget.current !== null) {
+        const cur = Math.log(P.alt);
+        const next = cur + (zoomTarget.current - cur) * (1 - Math.exp(-dt / ZOOM_TAU));
+        P.alt = Math.exp(next);
+        if (Math.abs(zoomTarget.current - next) < 1e-4) zoomTarget.current = null;
+      }
+
+      // Idle drift, ramping in after the last input (and only when nothing is locked in the app).
+      const idle = (performance.now() - Math.max(lastInteraction.current, inp.lastInputAt)) / 1000;
+      const drifting = s.entered ? !s.selection && idle > IDLE_MS / 1000 : idle > 2.5;
+      if (drifting && !inp.dragging) {
+        const ramp = Math.min(1, (idle - (s.entered ? IDLE_MS / 1000 : 2.5)) / DRIFT_RAMP_S);
+        P.lon += (s.entered ? DRIFT_APP : DRIFT_LANDING) * DEG * dt * ramp * ramp;
+      }
+
+      P.lat = THREE.MathUtils.clamp(P.lat, -MAX_LAT * DEG, MAX_LAT * DEG);
+      P.lon = Math.atan2(Math.sin(P.lon), Math.cos(P.lon));
+      P.alt = THREE.MathUtils.clamp(P.alt, MIN_DIST - 1, MAX_DIST - 1);
+      applyPose(camera, P);
     }
-    if (c) {
-      const dist = camera.position.length();
-      // Finer control when close to the surface.
-      c.rotateSpeed = THREE.MathUtils.clamp(0.12 + (dist - 1) * 0.17, 0.12, 0.6);
-      c.zoomSpeed = THREE.MathUtils.clamp(0.4 + (dist - 1) * 0.15, 0.4, 1.0);
-      const s = useAppStore.getState();
-      const idle = performance.now() - lastInteraction.current;
-      c.autoRotate = !flight.current && (s.entered ? !s.selection && idle > IDLE_MS : idle > 2500);
-      c.autoRotateSpeed = s.entered ? 0.35 : 0.6;
-      // Landing: the planet can be turned but not zoomed (wheel scrolls nothing, the page is the hero).
-      c.enabled = !flight.current;
-      c.enableZoom = s.entered;
-      const alt = (dist - 1) * EARTH_RADIUS_KM;
+
+    // The altitude read-out, a few times a second at most.
+    const now = performance.now();
+    if (now - lastPublish.current > 150) {
+      lastPublish.current = now;
+      const alt = (camera.position.length() - 1) * EARTH_RADIUS_KM;
       if (Math.abs(alt - lastAlt.current) / Math.max(1, lastAlt.current) > 0.01) {
         lastAlt.current = alt;
         s.setAltitude(alt);
@@ -276,21 +452,5 @@ export function CameraRig({
     }
   });
 
-  return (
-    <OrbitControls
-      ref={controls}
-      enablePan={false}
-      enableDamping
-      dampingFactor={0.065}
-      minDistance={MIN_DIST}
-      maxDistance={MAX_DIST}
-      onStart={() => {
-        lastInteraction.current = performance.now();
-        flight.current = null;
-        if (controls.current) controls.current.enabled = true;
-      }}
-      onEnd={() => (lastInteraction.current = performance.now())}
-      makeDefault
-    />
-  );
+  return null;
 }

@@ -8,6 +8,7 @@ import { STRIKE_CAPACITY, STRIKE_EPOCH, strikes } from "@/lib/lightning/buffer";
 import { COLOR } from "./shaders/common";
 import { RENDER_ORDER } from "./uniforms";
 import { useLayerFade } from "./useLayerFade";
+import { LayerGroup } from "./LayerGroup";
 
 const vertex = /* glsl */ `
 attribute float aTime;
@@ -121,5 +122,9 @@ function Lightning({ opacity }: { opacity: React.RefObject<number> }) {
 
 export function LightningLayer({ enabled }: { enabled: boolean }) {
   const { mounted, opacity } = useLayerFade(enabled, 0.4);
-  return mounted ? <Lightning opacity={opacity} /> : null;
+  return mounted ? (
+    <LayerGroup opacity={opacity}>
+      <Lightning opacity={opacity} />
+    </LayerGroup>
+  ) : null;
 }

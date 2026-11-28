@@ -213,6 +213,33 @@ function gibsContextUrl(lat: number, lon: number, px: number) {
   return { url: `https://gibs.earthdata.nasa.gov/wms/epsg4326/best/wms.cgi?${q}`, dLat, dLon };
 }
 
+/**
+ * Load an image as a texture with the decode off the main thread (createImageBitmap), so a big map or a GIBS patch
+ * never freezes a frame while it decodes. Only the GPU upload is left, and the caller chooses when it happens.
+ */
+function loadBitmapTexture(url: string): Promise<THREE.Texture> {
+  const loader = new THREE.ImageBitmapLoader();
+  loader.setOptions({ imageOrientation: "flipY", premultiplyAlpha: "none" });
+  loader.setCrossOrigin("anonymous");
+  return new Promise((resolve, reject) =>
+    loader.load(
+      url,
+      (bitmap) => {
+        const t = new THREE.Texture(bitmap as unknown as HTMLImageElement);
+        t.flipY = false; // already flipped by createImageBitmap
+        t.needsUpdate = true;
+        resolve(t);
+      },
+      undefined,
+      reject,
+    ),
+  );
+}
+
+/** Resolves when the browser has a quiet moment (or after `timeout` ms). */
+const whenIdle = (timeout: number) =>
+  new Promise<void>((r) => ("requestIdleCallback" in window ? window.requestIdleCallback(() => r(), { timeout }) : setTimeout(r, 200)));
+
 export function Earth({ cloudShadow, snow }: { cloudShadow: number; snow: boolean }) {
   const gl = useThree((s) => s.gl);
   const [day, night, clouds, data, topo] = useTexture([
@@ -264,24 +291,44 @@ export function Earth({ cloudShadow, snow }: { cloudShadow: number; snow: boolea
     });
   }, [day, night, clouds, data, topo, gl]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Progressive HD: swap in the 8k day map once the visitor is in and the GPU can hold it.
+  // Progressive HD: the 8k day map, for desktops whose GPU can hold it. Decoded off the main thread, then copied to
+  // the GPU in 256-row slices, one per frame (~8 MB each, as Watched slices its uploads), with mipmaps built once at
+  // the end: a single 8192×4096 upload stalls the page for ~0.6 s, sixteen slices never drop a frame.
+  const hdRequested = useRef(false);
+  const hdUpload = useRef<{ src: THREE.Texture; dst: THREE.DataTexture; y: number } | null>(null);
+  const mountedRef = useRef(true);
+  useEffect(
+    () => () => {
+      mountedRef.current = false;
+    },
+    [],
+  );
   useEffect(() => {
-    if (!entered || gl.capabilities.maxTextureSize < 8192 || window.innerWidth < 1024) return;
-    let alive = true;
-    const id = window.setTimeout(() => {
-      new THREE.TextureLoader().load(TEXTURES.day8k, (t) => {
-        if (!alive) return t.dispose();
-        t.colorSpace = THREE.SRGBColorSpace;
-        t.anisotropy = Math.min(16, gl.capabilities.getMaxAnisotropy());
-        material.uniforms.uDay.value = t;
-        material.uniforms.uDayLod.value = Math.log2(TONE_KM / (40075 / 8192));
-      });
-    }, 1200);
-    return () => {
-      alive = false;
-      clearTimeout(id);
-    };
-  }, [entered, gl, material]);
+    if (!entered || hdRequested.current) return;
+    const mem = (navigator as Navigator & { deviceMemory?: number }).deviceMemory;
+    if (gl.capabilities.maxTextureSize < 8192 || window.innerWidth < 1024 || (mem !== undefined && mem < 4)) return;
+    hdRequested.current = true;
+    (async () => {
+      const t = await loadBitmapTexture(TEXTURES.day8k).catch(() => null);
+      if (!t) return;
+      await new Promise((r) => setTimeout(r, 3500)); // the entry flight is 3.2 s
+      await whenIdle(4000);
+      if (!mountedRef.current) return t.dispose();
+      const { width, height } = t.image as ImageBitmap;
+      // GPU storage only (all mip levels), no data yet: the slices fill it.
+      const dst = new THREE.DataTexture(null, width, height);
+      dst.source.dataReady = false;
+      dst.colorSpace = THREE.SRGBColorSpace;
+      dst.generateMipmaps = true;
+      dst.mipmapsAutoUpdate = false;
+      dst.minFilter = THREE.LinearMipmapLinearFilter;
+      dst.magFilter = THREE.LinearFilter;
+      dst.anisotropy = Math.min(16, gl.capabilities.getMaxAnisotropy());
+      dst.needsUpdate = true;
+      gl.initTexture(dst);
+      hdUpload.current = { src: t, dst, y: 0 };
+    })();
+  }, [entered, gl, material, day]);
 
   // HD regional patch around the selected place.
   useEffect(() => {
@@ -290,10 +337,7 @@ export function Earth({ cloudShadow, snow }: { cloudShadow: number; snow: boolea
     let alive = true;
     const px = window.innerWidth < 768 ? 1024 : 1536;
     const { url, dLat, dLon } = gibsContextUrl(selection.lat, selection.lon, px);
-    const loader = new THREE.TextureLoader();
-    loader.setCrossOrigin("anonymous");
-    loader.load(
-      url,
+    loadBitmapTexture(url).then(
       (t) => {
         if (!alive) return t.dispose();
         t.colorSpace = THREE.SRGBColorSpace;
@@ -305,7 +349,6 @@ export function Earth({ cloudShadow, snow }: { cloudShadow: number; snow: boolea
         u.uCtxLod.value = Math.max(0, Math.log2(TONE_KM / ((2 * CTX_HALF_KM) / px)));
         ctxTarget.current = 1;
       },
-      undefined,
       () => undefined,
     );
     return () => {
@@ -315,6 +358,23 @@ export function Earth({ cloudShadow, snow }: { cloudShadow: number; snow: boolea
 
   useFrame((_, dt) => {
     const u = material.uniforms;
+    const up = hdUpload.current;
+    if (up) {
+      const { width, height } = up.src.image as ImageBitmap;
+      const y1 = Math.min(height, up.y + 256);
+      const last = y1 >= height;
+      up.dst.mipmapsAutoUpdate = last; // mipmaps once, with the final slice
+      gl.copyTextureToTexture(up.src, up.dst, new THREE.Box2(new THREE.Vector2(0, up.y), new THREE.Vector2(width, y1)), new THREE.Vector2(0, up.y));
+      up.y = y1;
+      if (last) {
+        hdUpload.current = null;
+        const old = u.uDay.value as THREE.Texture;
+        u.uDay.value = up.dst;
+        u.uDayLod.value = Math.log2(TONE_KM / (40075 / 8192));
+        if (old !== day) old.dispose();
+        (up.src.image as ImageBitmap).close?.();
+      }
+    }
     const k = Math.min(1, dt * 2.5);
     u.uCloudShadow.value += (cloudShadow - u.uCloudShadow.value) * k;
     u.uSnow.value += ((snow ? 1 : 0) - u.uSnow.value) * k;

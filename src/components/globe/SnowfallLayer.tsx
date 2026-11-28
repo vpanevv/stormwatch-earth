@@ -10,6 +10,7 @@ import { CLIMATE, COLOR, GEO, NOISE, SIM_PRECIP } from "./shaders/common";
 import { TEXTURES } from "./Earth";
 import { RENDER_ORDER, shared } from "./uniforms";
 import { useLayerFade } from "./useLayerFade";
+import { LayerGroup } from "./LayerGroup";
 
 const vertex = /* glsl */ `
 varying vec2 vUv;
@@ -140,5 +141,9 @@ function Snowfall({ opacity }: { opacity: React.RefObject<number> }) {
 
 export function SnowfallLayer({ enabled }: { enabled: boolean }) {
   const { mounted, opacity } = useLayerFade(enabled);
-  return mounted ? <Snowfall opacity={opacity} /> : null;
+  return mounted ? (
+    <LayerGroup opacity={opacity}>
+      <Snowfall opacity={opacity} />
+    </LayerGroup>
+  ) : null;
 }

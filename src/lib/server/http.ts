@@ -49,3 +49,12 @@ export function createThrottledCache<T>(minIntervalMs: number, ttlMs: number, ma
     return value;
   };
 }
+
+/** lat/lon from a request's query, or null when either is missing, not a number, or out of range. */
+export function readLatLon(params: URLSearchParams): { lat: number; lon: number } | null {
+  const rawLat = params.get("lat"), rawLon = params.get("lon");
+  if (rawLat === null || rawLon === null || rawLat.trim() === "" || rawLon.trim() === "") return null;
+  const lat = Number(rawLat), lon = Number(rawLon);
+  if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) return null;
+  return { lat, lon };
+}

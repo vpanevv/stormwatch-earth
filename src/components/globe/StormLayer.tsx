@@ -9,6 +9,7 @@ import { useAppStore } from "@/store/useAppStore";
 import { destination, EARTH_RADIUS_KM, latLonToVec3 } from "@/lib/geo";
 import { RENDER_ORDER, shared } from "./uniforms";
 import { useLayerFade } from "./useLayerFade";
+import { LayerGroup } from "./LayerGroup";
 
 const vertex = /* glsl */ `
 varying vec2 vUv;
@@ -139,5 +140,9 @@ function Storms({ opacity }: { opacity: React.RefObject<number> }) {
 
 export function StormLayer({ enabled }: { enabled: boolean }) {
   const { mounted, opacity } = useLayerFade(enabled);
-  return mounted ? <Storms opacity={opacity} /> : null;
+  return mounted ? (
+    <LayerGroup opacity={opacity}>
+      <Storms opacity={opacity} />
+    </LayerGroup>
+  ) : null;
 }

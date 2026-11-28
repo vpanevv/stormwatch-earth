@@ -10,6 +10,7 @@ import { CLIMATE, COLOR, GEO, NOISE, TEMP_RAMP } from "./shaders/common";
 import { TEXTURES } from "./Earth";
 import { RENDER_ORDER, shared } from "./uniforms";
 import { useLayerFade } from "./useLayerFade";
+import { LayerGroup } from "./LayerGroup";
 
 const vertex = /* glsl */ `
 varying vec2 vUv;
@@ -106,5 +107,9 @@ function Temperature({ opacity }: { opacity: React.RefObject<number> }) {
 
 export function TemperatureLayer({ enabled }: { enabled: boolean }) {
   const { mounted, opacity } = useLayerFade(enabled);
-  return mounted ? <Temperature opacity={opacity} /> : null;
+  return mounted ? (
+    <LayerGroup opacity={opacity}>
+      <Temperature opacity={opacity} />
+    </LayerGroup>
+  ) : null;
 }

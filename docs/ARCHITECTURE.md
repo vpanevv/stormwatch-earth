@@ -116,7 +116,7 @@ app/page.tsx (server)
 └─ ClientRoot (client-only boundary, ssr:false)
    └─ StormWatchApp ─ useBootstrap · useWeatherSync · useLightningFeed
       ├─ GlobeCanvas  (R3F <Canvas>, lazy chunk)
-      │  ├─ PerformanceMonitor + AdaptiveDpr     adaptive resolution
+      │  ├─ PerformanceMonitor                  adaptive resolution (dpr 1…2, fixed MSAA)
       │  ├─ TimeDriver                            advances clock, updates shared uniforms
       │  ├─ Stars
       │  ├─ <Suspense>
@@ -131,7 +131,7 @@ app/page.tsx (server)
       │  │  ├─ LightningLayer     (GPU points)    ┘
       │  │  ├─ LocationMarker                     radar-lock reticle + <Html> label
       │  │  └─ Atmosphere                         analytic limb scattering
-      │  └─ CameraRig                             OrbitControls, fly-to, idle spin, picking
+      │  └─ CameraRig                             direct-manipulation drag/zoom (Watched-style), fly-to, idle drift, picking
       ├─ TopBar · LayerRail · Hud (legends, cursor, altitude)
       ├─ SearchPanel                              autocomplete, coords, geolocation
       ├─ Sidebar
@@ -207,7 +207,24 @@ Rules that keep the frame rate high:
 
 | HD | 4K day/night/clouds plus a 4K data map (R = relief, G = ocean mask) on first paint; the 8K day map swaps in after entry on desktops (`maxTextureSize ≥ 8192`). The **context patch** is a 720 km NASA GIBS Blue Marble square (1536 px, ~0.47 km/px) around the selected place, sampled with `textureGrad`. It keeps the global map's tone at about 60 km (`textureLod`) and adds only the patch's finer detail, feathered at the edges. `uOrbitFade` thins the coarse global cloud layer and its shadows on close views | One extra texture per place; fades in once bound |
 
-Performance: `PerformanceMonitor` steps the device pixel ratio between 0.75 and 2 to hold 50–60 fps.
+Performance (audited November 2026, Apple M3, 1440×900 at 2× density, production build):
+
+- **Pixel density** starts at the screen's own, at most 1.5, and `PerformanceMonitor` steps it between 1 and
+  min(2, device) to hold 45–58 fps. MSAA is fixed for the session, so a step never rebuilds the composer.
+- **No hitches from big textures.** The 8k day map and the GIBS patch are decoded off the main thread
+  (`ImageBitmapLoader`); the 8k map is then copied to the GPU in 256-row slices, one per frame, with mipmaps built once
+  (`Earth.tsx`). Before: a 0.6–1.3 s freeze after entering or on the first zoom.
+- **No hitches from layers.** `LayerGroup` compiles a layer's shaders with `compileAsync` while it stays hidden, and
+  stops drawing it once it has faded out. Before: turning Temperature on froze the page for 1.2 s.
+- **Camera** (`CameraRig.tsx`): Watched-style direct manipulation. The surface follows the pointer at any zoom,
+  throws coast with inertia (τ 0.32 s), and wheel and pinch zoom ease in log altitude (τ 0.12 s). Listeners only
+  accumulate input; the frame loop applies it. Altitude and hover reach React a few times a second at most.
+
+| Frame time (avg / worst) | Before | After |
+|:--|:--|:--|
+| Idle | 67 / 283 ms | 23 / 68 ms |
+| Drag | 46 / 250 ms | 24 / 65 ms |
+| Zoom | 56 / 1,334 ms | 26 / 68 ms |
 Layers mount only on first enable, the globe bundle and MapLibre are separate lazy chunks, picking
 uses an analytic ray–sphere test (no mesh raycasting), and textures are served `immutable`.
 

@@ -8,6 +8,7 @@ import { DEG, haversineKm } from "@/lib/geo";
 import { noise3 } from "@/lib/random";
 import { RENDER_ORDER } from "./uniforms";
 import { useLayerFade } from "./useLayerFade";
+import { LayerGroup } from "./LayerGroup";
 
 const R = 1.011;
 
@@ -147,5 +148,9 @@ function writeVec(arr: Float32Array, o: number, lat: number, lon: number) {
 
 export function WindLayer({ enabled }: { enabled: boolean }) {
   const { mounted, opacity } = useLayerFade(enabled);
-  return mounted ? <Wind opacity={opacity} /> : null;
+  return mounted ? (
+    <LayerGroup opacity={opacity}>
+      <Wind opacity={opacity} />
+    </LayerGroup>
+  ) : null;
 }

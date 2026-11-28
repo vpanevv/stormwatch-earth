@@ -10,6 +10,7 @@ import { COLOR, GEO, NOISE } from "./shaders/common";
 import { TEXTURES } from "./Earth";
 import { RENDER_ORDER, shared } from "./uniforms";
 import { useLayerFade } from "./useLayerFade";
+import { LayerGroup } from "./LayerGroup";
 
 const vertex = /* glsl */ `
 varying vec2 vUv;
@@ -153,5 +154,9 @@ function Clouds({ opacity }: { opacity: React.RefObject<number> }) {
 
 export function CloudLayer({ enabled }: { enabled: boolean }) {
   const { mounted, opacity } = useLayerFade(enabled);
-  return mounted ? <Clouds opacity={opacity} /> : null;
+  return mounted ? (
+    <LayerGroup opacity={opacity}>
+      <Clouds opacity={opacity} />
+    </LayerGroup>
+  ) : null;
 }

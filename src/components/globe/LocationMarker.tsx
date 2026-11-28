@@ -111,7 +111,7 @@ export function LocationMarker() {
     const t = Math.min(1, (performance.now() - lockStart.current) / 900);
     material.uniforms.uLock.value = 1 - Math.pow(1 - t, 3);
     const shown = useAppStore.getState().entered ? 1 : 0;
-    const facing = shown * THREE.MathUtils.smoothstep(normal.dot(camera.position.clone().normalize()), 0.05, 0.25);
+    const facing = shown * THREE.MathUtils.smoothstep(normal.dot(camera.position) / camera.position.length(), 0.05, 0.25);
     material.uniforms.uFacing.value = facing;
     if (el) {
       projected.copy(mesh.current.position).project(camera);
