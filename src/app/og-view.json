@@ -1,5 +1,6 @@
 {
   "size": 1000,
+  "head": 160,
   "radius": 420,
   "view": {
     "lat": 30,

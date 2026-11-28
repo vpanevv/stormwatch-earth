@@ -148,8 +148,8 @@ npm run typecheck
 npm run build                      # production build (delete .next when switching between build and dev)
 npm start                          # serve the build
 
-npm run icons                      # rebuild the favicon and app icons from public/brand/stormwatch-icon.svg
-npm run og:globe                   # re-render the planet in the link-preview card
+npm run icons                      # render the app icon (real globe + strike) and every size of it
+npm run og:globe                   # re-render the planet and strike in the link-preview card
 node scripts/render-wordmark.mjs   # the wordmark images at the top of this page
 ```
 
