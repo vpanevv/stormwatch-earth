@@ -67,7 +67,7 @@ export function LightningHero({ hot, now, onWatch, compact = false }: { hot: Lig
   if (compact) {
     return (
       <button onClick={onWatch} className="flex items-center gap-3 bg-[#020306]/75 py-2 pl-2 pr-4 text-left backdrop-blur-sm">
-        <AppIcon className="h-11 w-11 shrink-0" />
+        <Bolt className="h-7 w-7 shrink-0 text-accent drop-shadow-[0_0_10px_rgba(255,122,26,0.7)]" />
         <span>
           <span className="block font-display text-[34px] font-semibold leading-none text-[#ece8e0] [font-stretch:80%]">
             <TickingNumber value={hot.strikes.count} />
@@ -93,7 +93,7 @@ export function LightningHero({ hot, now, onWatch, compact = false }: { hot: Lig
         Live lightning <span className="text-mute">· Xweather</span>
       </div>
       <div className="mt-2 flex items-center gap-3">
-        <AppIcon className="h-[clamp(56px,10vh,104px)] w-[clamp(56px,10vh,104px)] shadow-[0_0_40px_rgba(255,122,26,0.25)]" />
+        <Bolt className="h-[clamp(40px,7vh,72px)] w-[clamp(40px,7vh,72px)] text-accent drop-shadow-[0_0_18px_rgba(255,122,26,0.75)]" />
         <span className="font-display text-[clamp(64px,12vh,132px)] font-semibold leading-[0.85] tracking-[-0.02em] text-[#ece8e0] [font-stretch:78%] [text-shadow:0_2px_30px_rgba(0,0,0,0.6)]">
           <TickingNumber value={hot.strikes.count} />
         </span>
