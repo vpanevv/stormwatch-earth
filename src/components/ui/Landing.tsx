@@ -21,7 +21,11 @@ import { useLightningHotspot } from "@/hooks/useDataFeeds";
  * on the globe — enters the observatory and dives to it. "Explore the globe" enters without a place.
  */
 
-const TRY = ["Razlog", "Sofia", "Tokyo", "Reykjavík"].map((n) => GAZETTEER.find((p) => p.name === n)!);
+/** The landing's quick picks, after "↺ last place". */
+const TRY: Place[] = [
+  ...["New York", "London", "Sydney"].map((n) => GAZETTEER.find((p) => p.name === n)!),
+  { ...GAZETTEER.find((p) => p.name === "Sahara")!, id: "try-sahara", name: "Sahara Desert" },
+];
 
 /** Places with weather worth seeing; "Surprise me" also considers the live storm cells. */
 const SURPRISES: Place[] = [
@@ -330,7 +334,7 @@ function LandingView() {
             </span>
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
-            {(resume ? [resume, ...TRY.filter((p) => p.name !== resume.name).slice(0, 2)] : TRY.slice(0, 3)).map((p, i) => (
+            {(resume ? [resume, ...TRY.filter((p) => p.name !== resume.name && !(p.lat === resume.lat && p.lon === resume.lon))] : TRY).map((p, i) => (
               <button
                 key={p.id}
                 onClick={() => (resume && i === 0 ? enter() : go(p))}

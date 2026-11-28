@@ -12,9 +12,17 @@ export function Brand({ compact = false, children }: { compact?: boolean; childr
   const setAboutOpen = useAppStore((s) => s.setAboutOpen);
   return (
     <div className="pointer-events-auto select-none">
-      <div className={`font-serif leading-none text-ink ${compact ? "text-[26px]" : "text-[28px] sm:text-[34px]"}`}>
+      <a
+        href="/"
+        onClick={(e) => {
+          e.preventDefault();
+          useAppStore.getState().leave();
+        }}
+        title="StormWatch Earth: back to the start"
+        className={`inline-block font-serif leading-none text-ink transition-opacity hover:opacity-80 ${compact ? "text-[26px]" : "text-[28px] sm:text-[34px]"}`}
+      >
         StormWatch<span className="text-accent">.</span>
-      </div>
+      </a>
       <nav
         className={`flex items-center whitespace-nowrap font-mono uppercase text-ink ${
           compact

@@ -79,16 +79,31 @@ export function CameraRig({
     cam.updateProjectionMatrix();
   }, [camera, size.width, size.height, sidebarOffset, bottomOffset, topOffset, entered]);
 
+  // Diameter ≈ 72% of the height on wide screens, ≈ 86% of the width on phones.
+  const landingDistance = () => {
+    const wide = size.width >= 1024;
+    const radiusPx = wide ? Math.min(0.34 * size.height, 0.2 * size.width) : 0.34 * size.width;
+    return THREE.MathUtils.clamp(size.height / 2 / (HALF_FOV_TAN * radiusPx), 3.6, MAX_DIST);
+  };
+
   // Before entry the planet turns slowly in deep space, behind the intro screen.
   useEffect(() => {
     const lon = THREE.MathUtils.clamp((-new Date().getTimezoneOffset() / 60) * 15, -180, 180);
     const dir = latLonToVec3(18, lon - 25).normalize();
-    // Diameter ≈ 72% of the height on wide screens, ≈ 86% of the width on phones.
-    const wide = size.width >= 1024;
-    const radiusPx = wide ? Math.min(0.34 * size.height, 0.2 * size.width) : 0.34 * size.width;
-    camera.position.copy(dir.multiplyScalar(THREE.MathUtils.clamp(size.height / 2 / (HALF_FOV_TAN * radiusPx), 3.6, MAX_DIST)));
+    camera.position.copy(dir.multiplyScalar(landingDistance()));
     camera.lookAt(0, 0, 0);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Back to the intro screen (the wordmark): pull out to the landing framing over the same spot.
+  const wasEntered = useRef(entered);
+  useEffect(() => {
+    if (wasEntered.current && !entered) {
+      const dir = camera.position.clone().normalize();
+      const to = dir.clone().setY(THREE.MathUtils.clamp(dir.y, -0.5, 0.5)).normalize();
+      startFlight(to, landingDistance(), 1.6, dir.angleTo(to));
+    }
+    wasEntered.current = entered;
+  }, [entered]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // On entry: dive in toward the remembered place, or the viewer's longitude.
   useEffect(() => {

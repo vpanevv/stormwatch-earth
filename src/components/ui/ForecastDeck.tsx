@@ -15,6 +15,7 @@ import { IconChevron, IconCrosshair, IconShare, IconDroplet, IconSnow, IconWind 
 import { Skeleton, SourceBadge } from "./primitives";
 import { SnowOverlay } from "./SnowOverlay";
 import { RainOverlay } from "./RainOverlay";
+import { LightningOverlay } from "./LightningOverlay";
 import { strikeLine } from "./LiveLightning";
 
 type Tab = "48h" | "7d";
@@ -24,6 +25,8 @@ const HOUR = 3_600_000;
 export function ForecastDeck({ collapsed, onToggle, compact = false }: { collapsed: boolean; onToggle: () => void; compact?: boolean }) {
   const selection = useAppStore((s) => s.selection);
   const weather = useAppStore((s) => s.weather);
+  const liveL = useAppStore((s) => s.liveLightning);
+  const strikesNow = liveL?.available && liveL.strikes.count > 0 ? liveL.strikes : null;
   const w = weather.data;
   const [tab, setTab] = useState<Tab>("48h");
 
@@ -49,6 +52,7 @@ export function ForecastDeck({ collapsed, onToggle, compact = false }: { collaps
 
   return (
     <section aria-label="Forecast" className="panel corner-brackets relative flex h-full min-h-0 flex-col overflow-hidden">
+      {selection && strikesNow && <LightningOverlay count={strikesNow.count} cg={strikesNow.cg} ic={strikesNow.ic} />}
       {rainIntensity > 0 && <RainOverlay intensity={rainIntensity} className="opacity-80" />}
       {snowIntensity > 0 && <SnowOverlay intensity={snowIntensity} className="opacity-70" />}
       {!selection ? (

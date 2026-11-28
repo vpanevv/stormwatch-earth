@@ -98,6 +98,8 @@ type Actions = {
   setSheetOpen: (b: boolean) => void;
   setGlobeReady: () => void;
   enter: () => void;
+  /** Back to the intro screen (the wordmark link); the place is kept for "↺ last place". */
+  leave: () => void;
   setShareOpen: (b: boolean) => void;
   setAboutOpen: (b: boolean) => void;
   setLiveLightning: (l: LiveLightning | null) => void;
@@ -191,6 +193,7 @@ export const useAppStore = create<State & Actions>()((set, get) => ({
   setSheetOpen: (sheetOpen) => set({ sheetOpen }),
   setGlobeReady: () => set({ globeReady: true }),
   enter: () => set({ entered: true }),
+  leave: () => set({ entered: false, pin: null, shareOpen: false, aboutOpen: false, sheetOpen: false }),
   setShareOpen: (shareOpen) => set({ shareOpen }),
   setAboutOpen: (aboutOpen) => set({ aboutOpen }),
   setLiveLightning: (liveLightning) => set({ liveLightning }),
