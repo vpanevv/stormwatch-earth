@@ -8,7 +8,6 @@ import { usePlaceSearch } from "@/hooks/usePlaceSearch";
 import { selectCoordinates, selectPlace, useMyLocation } from "@/lib/actions";
 import { GAZETTEER } from "@/lib/gazetteer";
 import { subsolarPoint } from "@/lib/sun";
-import { fmtInt } from "@/lib/format";
 import { IconCrosshair, IconSearch } from "./icons";
 import { KIND_LABEL } from "./SearchPanel";
 import { Brand, Divider } from "./Brand";
@@ -104,7 +103,7 @@ function LandingView() {
     const c = satLive?.clusters[0];
     if (!c) return;
     const ns = `${Math.abs(c.lat).toFixed(1)}°${c.lat >= 0 ? "N" : "S"} ${Math.abs(c.lon).toFixed(1)}°${c.lon >= 0 ? "E" : "W"}`;
-    go({ id: `glm-${c.lat},${c.lon}`, name: ns, context: "Busiest storm seen by NOAA's satellites", kind: "coords", lat: c.lat, lon: c.lon });
+    go({ id: `glm-${c.lat},${c.lon}`, name: c.name?.split(", ")[0] ?? ns, context: c.name?.split(", ").slice(1).join(", ") || "Busiest storm seen by NOAA's satellites", kind: "coords", lat: c.lat, lon: c.lon });
   };
   const resume = useAppStore((s) => s.selection);
   const geolocating = useAppStore((s) => s.geolocating);
@@ -259,17 +258,6 @@ function LandingView() {
           transition={{ delay: 0.55, duration: 0.7 }}
           className="mt-3 hidden max-w-[620px] font-display text-[14px] [@media(min-height:820px)]:block lg:block leading-snug sm:mt-5 sm:text-[17px] sm:leading-relaxed text-[#a4acb6] lg:mt-[3vh] lg:text-[clamp(16px,2.4vh,21px)]"
         >
-          {storm && storm.strikes.count > 0 ? (
-            <span className="text-ink">
-              Right now, lightning has struck <span className="font-semibold text-accent">{fmtInt(storm.strikes.count)}&nbsp;times</span> in{" "}
-              {storm.windowMin}&nbsp;minutes near {storm.place.name}.{" "}
-            </span>
-          ) : satLive ? (
-            <span className="text-ink">
-              In the last {satLive.windowMin}&nbsp;minutes, NOAA&apos;s satellites saw{" "}
-              <span className="font-semibold text-accent">{fmtInt(satLive.flashes)}&nbsp;lightning flashes</span> over the Americas.{" "}
-            </span>
-          ) : null}
           Enter any place on Earth. See its clouds, radar, snow and lightning on a live planet, and the forecast for the
           next&nbsp;7&nbsp;days.
         </motion.p>
@@ -404,7 +392,7 @@ function LandingView() {
       </section>
 
       {/* corner readouts */}
-      <footer className="absolute inset-x-6 bottom-5 hidden items-end justify-between font-mono text-[11px] tracking-[0.14em] lg:inset-x-12 lg:bottom-7 lg:flex lg:text-[12px]">
+      <footer className="absolute inset-x-6 bottom-5 hidden items-end justify-between font-mono text-[11px] tracking-[0.14em] lg:inset-x-12 lg:bottom-7 lg:flex lg:text-[12px] [@media(max-height:920px)]:!hidden">
         <div className="leading-relaxed">
           {globeReady ? (
             <>
@@ -413,12 +401,6 @@ function LandingView() {
               </div>
               <div className="text-mute">
                 {latest ? `LATEST ${new Date(latest).toISOString().slice(11, 16)}Z · ${Math.max(0, Math.round((now - latest) / 60_000))} MIN AGO` : "RADAR CONNECTING"}
-                {storm && (
-                  <span className="hidden sm:inline">
-                    {" "}
-                    · <span className="text-accent">⚡ {fmtInt(storm.strikes.count)}</span> STRIKES / {storm.windowMin} MIN · XWEATHER
-                  </span>
-                )}
               </div>
             </>
           ) : (

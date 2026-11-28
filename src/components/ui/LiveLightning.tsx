@@ -42,13 +42,21 @@ const Bolt = ({ className = "" }: { className?: string }) => (
 
 type Sat = SatelliteLightning | null;
 type SatLive = Extract<SatelliteLightning, { available: true }>;
+type HotLive = Extract<LightningHotspot, { available: true }>;
+
+const coordLabel = (lat: number, lon: number) =>
+  `${Math.abs(lat).toFixed(1)}°${lat >= 0 ? "N" : "S"} ${Math.abs(lon).toFixed(1)}°${lon >= 0 ? "E" : "W"}`;
+const utcTime = (ms: number) => new Date(ms).toISOString().slice(11, 16);
+const short = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1).trimEnd()}…` : s);
 
 /**
- * The landing's headline number: live lightning strikes in the last 5 minutes around the most active storm right now
- * (Xweather; the storm found with NOAA's GOES lightning cameras and Open-Meteo). When that storm comes back quiet or
- * Xweather is out, the flashes NOAA's satellites saw over the Americas in the same 5 minutes lead instead. Both are
- * observations; the worldwide figure under them is the one estimate, and says so. `onWatch` flies into the storm,
- * `onWatchSat` into the busiest storm the satellites see.
+ * The landing's live lightning, in one reading order:
+ *   1. one big number, observed: every flash NOAA's GOES satellites saw over the Americas in the last 5 minutes
+ *      (or, when they're out, Xweather's strikes around the most active storm);
+ *   2. one line for the most active storm (Xweather strikes near a named place, else the satellites' busiest circle),
+ *      with "Watch" to fly there;
+ *   3. a small footnote: the worldwide total, an estimate, labelled as one.
+ * `onWatch` flies into the Xweather storm, `onWatchSat` into the satellites' busiest storm.
  */
 export function LightningHero({
   hot,
@@ -66,167 +74,139 @@ export function LightningHero({
   compact?: boolean;
 }) {
   const satLive: SatLive | null = sat?.available && sat.flashes > 0 ? sat : null;
-  // The storm leads when it has strikes, or when there's nothing better to show than its zero.
-  const storm = hot?.available && (hot.strikes.count > 0 || !satLive) ? hot : null;
+  const storm: HotLive | null = hot?.available ? hot : null;
+  const stormLive = storm && storm.strikes.count > 0 ? storm : null;
+  const cluster = satLive?.clusters[0];
+
+  // What leads: the satellites' count, else the storm's (even at zero), else nothing yet.
+  const lead = satLive
+    ? { value: satLive.flashes, unit: "flashes", source: "NOAA satellites", where: "over the Americas", at: satLive.to, windowMin: satLive.windowMin }
+    : storm
+      ? { value: storm.strikes.count, unit: storm.strikes.count === 1 ? "strike" : "strikes", source: "Xweather", where: `near ${storm.place.name}`, at: storm.fetchedAt, windowMin: storm.windowMin }
+      : null;
+  // The storm line under it (only when the satellites lead; otherwise the storm is the lead).
+  // Xweather's storm (a named place) when it's really striking; otherwise the satellites' busiest storm.
+  const stormLine = !satLive
+    ? null
+    : stormLive && (stormLive.strikes.count >= 10 || !cluster)
+      ? { n: stormLive.strikes.count, unit: stormLive.strikes.count === 1 ? "strike" : "strikes", place: [stormLive.place.name, stormLive.place.context?.split(", ").pop()].filter(Boolean).join(", "), watch: onWatch }
+      : cluster
+        ? { n: cluster.flashes, unit: "flashes", place: cluster.name ?? coordLabel(cluster.lat, cluster.lon), watch: onWatchSat }
+        : null;
+  const world = fmtInt(globalStrikeEstimate(now));
 
   if (compact) {
-    if (!storm && !satLive) return hot === null && sat === null ? null : <WorldEstimate now={now} compact />;
+    if (!lead) return hot === null && sat === null ? null : <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-mute">≈ {world} strikes worldwide · last 5 min · estimated</div>;
     return (
-      <button onClick={storm ? onWatch : onWatchSat} className="flex items-center gap-3 text-left">
+      <button onClick={stormLine ? stormLine.watch : onWatch} className="flex items-center gap-3 text-left">
         <Bolt className="h-7 w-7 shrink-0 text-accent drop-shadow-[0_0_10px_rgba(255,122,26,0.7)]" />
         <span>
           <span className="block font-display text-[34px] font-semibold leading-none text-[#ece8e0] [font-stretch:80%]">
-            <TickingNumber value={storm ? storm.strikes.count : satLive!.flashes} />
+            <TickingNumber value={lead.value} />
           </span>
-          <span className="mt-1 block font-mono text-[10px] uppercase tracking-[0.14em] text-mute">
+          <span className="mt-1 block font-mono text-[10px] uppercase tracking-[0.14em] text-ink/90">
             <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-emerald-400 live-dot align-middle" />
-            {storm
-              ? `strikes · last ${storm.windowMin} min · near ${storm.place.name}`
-              : `flashes · last ${satLive!.windowMin} min`}
+            {lead.unit} · last {lead.windowMin} min · {satLive ? "Americas" : lead.where}
           </span>
-          <span className="mt-0.5 block font-mono text-[10px] uppercase tracking-[0.14em] text-ink/80">
-            {storm && satLive ? `${fmtInt(satLive.flashes)} flashes · Americas · NOAA satellites` : !storm ? "over the Americas · NOAA satellites" : null}
-          </span>
-          <span className="mt-0.5 block font-mono text-[10px] uppercase tracking-[0.14em] text-mute">
-            ≈ {fmtInt(globalStrikeEstimate(now))} worldwide · estimated
-          </span>
+          {stormLine && (
+            <span className="mt-0.5 block font-mono text-[10px] uppercase tracking-[0.14em] text-mute">
+              Top storm <span className="text-accent">{fmtInt(stormLine.n)}</span> · {short(stormLine.place.split(",")[0], 18)}
+            </span>
+          )}
         </span>
       </button>
     );
   }
 
-  if (!storm && !satLive) {
-    if (!hot && !sat)
-      return (
-        <div className="flex flex-col items-end text-right font-mono text-[12px] uppercase tracking-[0.16em] text-mute">
-          <span className="animate-pulse">Finding the most active storm…</span>
-          <WorldEstimate now={now} />
-        </div>
-      );
+  if (!lead) {
     return (
-      <div className="flex flex-col items-end text-right font-mono text-[11px] uppercase tracking-[0.16em] text-faint">
-        Live lightning offline
+      <div className="flex flex-col items-end gap-2 text-right font-mono text-[12px] uppercase tracking-[0.16em] text-mute">
+        {hot === null && sat === null ? <span className="animate-pulse">Finding live lightning…</span> : <span className="text-faint">Live lightning offline</span>}
         {process.env.NODE_ENV === "development" && hot && !hot.available && hot.reason === "not-configured" && (
-          <div className="mt-1 normal-case tracking-normal">Set XWEATHER_CLIENT_ID and XWEATHER_CLIENT_SECRET</div>
+          <span className="normal-case tracking-normal text-faint">Set XWEATHER_CLIENT_ID and XWEATHER_CLIENT_SECRET</span>
         )}
-        <WorldEstimate now={now} />
+        <WorldLine world={world} now={now} />
       </div>
     );
   }
-
-  const header = storm ? (
-    <>
-      Live lightning <span className="text-mute">· Xweather</span>
-    </>
-  ) : (
-    <>
-      Live lightning <span className="text-mute">· NOAA GOES satellites</span>
-    </>
-  );
-  const value = storm ? storm.strikes.count : satLive!.flashes;
-  const caption = storm
-    ? storm.strikes.count > 0
-      ? `strikes in the last ${storm.windowMin} minutes`
-      : `no strikes in the last ${storm.windowMin} minutes`
-    : `lightning flashes in the last ${satLive!.windowMin} minutes`;
-  const where = storm ? [storm.place.name, storm.place.context?.split(", ").pop()].filter(Boolean).join(", ") : "";
-  const updated = ago(now - (storm ? storm.fetchedAt : satLive!.to));
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.8, ease: [0.2, 0.8, 0.2, 1] }}
-      className="relative flex flex-col items-end text-right before:pointer-events-none before:absolute before:-inset-x-16 before:-inset-y-10 before:-z-10 before:bg-[radial-gradient(closest-side,rgba(2,3,6,0.82),rgba(2,3,6,0.5)_60%,transparent)]"
+      className="relative flex w-[400px] max-w-[38vw] flex-col items-end text-right before:pointer-events-none before:absolute before:-inset-x-16 before:-inset-y-10 before:-z-10 before:bg-[radial-gradient(closest-side,rgba(2,3,6,0.85),rgba(2,3,6,0.55)_60%,transparent)]"
     >
+      {/* 1. the number */}
       <div className="flex items-center gap-2 font-mono text-[12px] uppercase tracking-[0.18em] text-ink">
         <span className="live-dot h-2 w-2 rounded-full bg-emerald-400" />
-        {header}
+        Live lightning <span className="text-mute">· {lead.source}</span>
       </div>
       <div className="mt-2 flex items-center gap-3">
-        <Bolt className="h-[clamp(40px,7vh,72px)] w-[clamp(40px,7vh,72px)] text-accent drop-shadow-[0_0_18px_rgba(255,122,26,0.75)]" />
-        <span className="font-display text-[clamp(64px,12vh,132px)] font-semibold leading-[0.85] tracking-[-0.02em] text-[#ece8e0] [font-stretch:78%] [text-shadow:0_2px_30px_rgba(0,0,0,0.6)]">
-          <TickingNumber value={value} />
+        <Bolt className="h-[clamp(40px,7vh,68px)] w-[clamp(40px,7vh,68px)] text-accent drop-shadow-[0_0_18px_rgba(255,122,26,0.75)]" />
+        <span className="font-display text-[clamp(64px,11vh,124px)] font-semibold leading-[0.85] tracking-[-0.02em] text-[#ece8e0] [font-stretch:78%] [text-shadow:0_2px_30px_rgba(0,0,0,0.6)]">
+          <TickingNumber value={lead.value} />
         </span>
       </div>
-      <div className="mt-3 font-mono text-[12px] uppercase tracking-[0.16em] text-ink/90">{caption}</div>
-      <div className="mt-1 max-w-[340px] text-[15px] leading-snug text-[#a4acb6]">
-        {storm ? (
-          <>
-            within {storm.strikes.radiusKm} km of <span className="text-ink">{where}</span>, the most active storm we found
-          </>
-        ) : (
-          <>
-            over <span className="text-ink">the Americas</span> and nearby oceans, seen from orbit by NOAA&apos;s GOES-19 and GOES-18
-            lightning cameras
-          </>
-        )}
+      <div className="mt-3 text-[17px] leading-snug text-[#d4d9df]">
+        lightning {lead.unit} in the last {lead.windowMin} minutes
+        <br />
+        <span className="text-mute">{lead.where}</span>
       </div>
-      <div className="mt-3 flex items-center gap-4">
-        <span className="font-mono text-[11px] tracking-[0.12em] text-faint">UPDATED {updated.toUpperCase()}</span>
-        <button
-          onClick={storm ? onWatch : onWatchSat}
-          className="border border-accent/50 bg-accent/10 px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.16em] text-accent transition-colors hover:bg-accent/20"
-        >
-          {storm ? "Watch this storm →" : "Watch the busiest storm →"}
-        </button>
-      </div>
-      {storm && satLive && <SatelliteLine sat={satLive} />}
-      <WorldEstimate now={now} />
-    </motion.div>
-  );
-}
 
-/** Under the storm: everything NOAA's GOES cameras saw over the Americas in the same 5 minutes. Observed, not estimated. */
-function SatelliteLine({ sat }: { sat: SatLive }) {
-  const names = sat.satellites.filter((s) => !s.error).map((s) => s.name);
-  return (
-    <div
-      className="mt-4 w-[400px] max-w-[40vw] border-t border-white/15 pt-3 text-right normal-case tracking-normal"
-      title={`Every lightning flash NOAA's Geostationary Lightning Mappers (${names.join(", ")}) recorded over the Americas and nearby oceans in the last ${sat.windowMin} minutes.`}
-    >
-      <div className="flex items-baseline justify-end gap-2.5">
-        <span className="whitespace-nowrap font-display text-[clamp(26px,4vh,36px)] font-semibold leading-none text-[#ece8e0] [font-stretch:80%]">
-          <TickingNumber value={sat.flashes} />
-        </span>
-        <span className="whitespace-nowrap font-mono text-[11px] uppercase tracking-[0.14em] text-ink/90">flashes over the Americas · last {sat.windowMin} min</span>
+      {/* 2. the most active storm */}
+      {stormLine ? (
+        <div className="mt-5 flex w-full items-center justify-end gap-4 border-t border-white/12 pt-4">
+          <div className="min-w-0 text-right">
+            <div className="font-mono text-[10.5px] uppercase tracking-[0.16em] text-mute">Most active storm</div>
+            <div className="mt-1 text-[15px] leading-snug text-[#d4d9df]">
+              <span className="font-semibold text-accent">
+                {fmtInt(stormLine.n)} {stormLine.unit}
+              </span>{" "}
+              near <span className="text-ink">{stormLine.place}</span>
+            </div>
+          </div>
+          <button
+            onClick={stormLine.watch}
+            className="shrink-0 border border-accent/50 bg-accent/10 px-3 py-2 font-mono text-[11px] uppercase tracking-[0.16em] text-accent transition-colors hover:bg-accent/20"
+          >
+            Watch →
+          </button>
+        </div>
+      ) : (
+        !satLive &&
+        storm && (
+          <button
+            onClick={onWatch}
+            className="mt-4 border border-accent/50 bg-accent/10 px-3 py-2 font-mono text-[11px] uppercase tracking-[0.16em] text-accent transition-colors hover:bg-accent/20"
+          >
+            Watch this storm →
+          </button>
+        )
+      )}
+
+      {/* 3. the footnote */}
+      <div className="mt-4 font-mono text-[10.5px] uppercase tracking-[0.14em] text-mute">
+        As of {utcTime(lead.at)} UTC · <WorldLine world={world} now={now} inline />
       </div>
-      <div className="mt-1.5 whitespace-nowrap font-mono text-[10px] uppercase tracking-[0.12em] text-mute">
-        <span className="text-emerald-300/90">Live</span> · seen from orbit by NOAA {names.join(" & ")}
-      </div>
-    </div>
+    </motion.div>
   );
 }
 
 /**
  * The whole planet's lightning in the same window, estimated from NASA's satellite record (lib/lightning/
- * globalEstimate.ts). Always labelled as an estimate: unlike the storm count above, nothing observes it live.
+ * globalEstimate.ts). Always labelled as an estimate: unlike the numbers above it, nothing observes it live.
  */
-function WorldEstimate({ now, compact = false }: { now: number; compact?: boolean }) {
-  const est = globalStrikeEstimate(now);
+function WorldLine({ world, now, inline = false }: { world: string; now: number; inline?: boolean }) {
   const rate = Math.round(globalFlashRate(now));
-  if (compact) {
-    return (
-      <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-ink/85">
-        ⚡ ≈ {fmtInt(est)} strikes worldwide · last 5 min · estimated
-      </div>
-    );
-  }
-  return (
-    <div
-      className="mt-4 w-[400px] max-w-[40vw] border-t border-white/15 pt-3 text-right normal-case tracking-normal"
-      title={`Estimated from NASA's LIS/OTD satellite lightning record: about ${rate} flashes a second at this time of day and year.`}
-    >
-      <div className="flex items-baseline justify-end gap-2.5">
-        <span className="whitespace-nowrap font-display text-[clamp(26px,4vh,36px)] font-semibold leading-none text-[#ece8e0] [font-stretch:80%]">
-          ≈ <TickingNumber value={est} />
-        </span>
-        <span className="whitespace-nowrap font-mono text-[11px] uppercase tracking-[0.14em] text-ink/90">strikes worldwide · last 5 min</span>
-      </div>
-      <div className="mt-1.5 whitespace-nowrap font-mono text-[10px] uppercase tracking-[0.12em] text-mute">
-        Estimated · NASA satellite average · ≈ {rate} per second
-      </div>
-    </div>
+  const text = `≈ ${world} worldwide (estimate)`;
+  const title = `Estimated from NASA's LIS/OTD satellite lightning record: about ${rate} flashes a second at this time of day and year.`;
+  return inline ? (
+    <span title={title}>{text}</span>
+  ) : (
+    <span title={title} className="font-mono text-[10.5px] uppercase tracking-[0.14em] text-faint">
+      {text}
+    </span>
   );
 }
 

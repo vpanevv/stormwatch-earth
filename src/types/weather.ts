@@ -163,7 +163,7 @@ export type SatelliteLightning =
       to: number;
       satellites: { name: string; flashes: number; error?: string }[];
       /** The busiest 100 km circles: flashes within 100 km of each point. */
-      clusters: { lat: number; lon: number; flashes: number }[];
+      clusters: { lat: number; lon: number; flashes: number; /** the busiest one only, when it's near a named place */ name?: string }[];
       fetchedAt: number;
     }
   | { available: false; reason: string };
