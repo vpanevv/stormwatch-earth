@@ -89,22 +89,96 @@ export function cachedHotspot(): Promise<Hotspot> {
   return value;
 }
 
+/**
+ * Places where thunderstorms are most frequent (NASA LIS/OTD lightning climatology): the fallback candidates when the
+ * global grid can't be fetched, ranked by Open-Meteo's current conditions or, failing that, by local afternoon.
+ */
+const HOTSPOTS: { lat: number; lon: number }[] = [
+  { lat: 9.6, lon: -71.6 }, // Lake Maracaibo
+  { lat: -2.5, lon: 28.9 }, // Kivu, DR Congo
+  { lat: -1.0, lon: 23.0 }, // Congo basin
+  { lat: 0.3, lon: 32.6 }, // Lake Victoria
+  { lat: 9.1, lon: 7.5 }, // central Nigeria
+  { lat: -18.9, lon: 47.5 }, // Madagascar
+  { lat: -26.2, lon: 28.0 }, // Highveld
+  { lat: 23.8, lon: 90.4 }, // Bangladesh
+  { lat: 25.6, lon: 91.9 }, // Meghalaya
+  { lat: 34.0, lon: 71.5 }, // north Pakistan
+  { lat: 23.1, lon: 113.3 }, // south China
+  { lat: 14.6, lon: 121.0 }, // Luzon
+  { lat: 0.0, lon: 109.3 }, // west Borneo
+  { lat: 1.5, lon: 112.0 }, // Sarawak
+  { lat: -3.0, lon: 104.7 }, // Sumatra
+  { lat: 1.35, lon: 103.8 }, // Singapore strait
+  { lat: -4.0, lon: 138.0 }, // New Guinea
+  { lat: -12.5, lon: 130.8 }, // Top End
+  { lat: 28.0, lon: -81.5 }, // Florida
+  { lat: 29.8, lon: -95.4 }, // Gulf coast
+  { lat: 38.5, lon: -98.0 }, // Great Plains
+  { lat: 19.4, lon: -99.1 }, // central Mexico
+  { lat: 8.0, lon: -77.5 }, // Darién
+  { lat: 6.2, lon: -75.6 }, // Antioquia
+  { lat: -3.1, lon: -60.0 }, // Amazon
+  { lat: -25.3, lon: -57.6 }, // Paraguay
+  { lat: -27.5, lon: -58.8 }, // Corrientes
+  { lat: -23.5, lon: -46.6 }, // São Paulo
+  { lat: 45.4, lon: 10.9 }, // Po valley
+];
+
+/** Storms peak in the late afternoon: hours from 16:00 local solar time, 0 (best) … 12. */
+const fromAfternoon = (lon: number, now = Date.now()) => {
+  const solar = ((now / 3_600_000 + lon / 15) % 24 + 24) % 24;
+  return Math.min(Math.abs(solar - 16), 24 - Math.abs(solar - 16));
+};
+
+const safeMessage = (e: unknown) => (e instanceof Error ? e.message : String(e)).replace(/client_(id|secret)=[^&\s]+/g, "client_$1=…").slice(0, 160);
+
 export async function findHotspot(): Promise<Hotspot> {
-  const coarse = (await current(LAND_GRID)).sort((a, b) => b.score - a.score);
-  const thunderstormPoints = coarse.filter((c) => c.code >= 95).length;
-  let best: { point: Candidate; strikes: StrikeSummary } | null = null;
-  for (const cell of coarse.slice(0, MAX_XWEATHER_TRIES)) {
-    const point = await refine(cell).catch(() => cell);
-    console.info(`[lightning/hotspot] storm candidate ${point.lat.toFixed(2)},${point.lon.toFixed(2)} code ${point.code} cape ${Math.round(point.cape)} rain ${point.precip}`);
-    const strikes = await strikeSummary(point.lat, point.lon);
-    if (!best || strikes.count > best.strikes.count) best = { point, strikes };
-    if (strikes.count > 0) break;
+  // 1. Candidates: the global land grid; if Open-Meteo can't answer that (it counts every location as a call), the
+  //    known hotspots ranked by their own conditions; if even that fails, by local afternoon.
+  let candidates: Candidate[];
+  let sampled = 0;
+  let thunderstormPoints = 0;
+  let refineOk = true;
+  try {
+    candidates = (await current(LAND_GRID)).sort((a, b) => b.score - a.score);
+    sampled = candidates.length;
+    thunderstormPoints = candidates.filter((c) => c.code >= 95).length;
+  } catch (e) {
+    console.warn("[lightning/hotspot] grid unavailable, using known hotspots:", safeMessage(e));
+    refineOk = false;
+    try {
+      candidates = (await current(HOTSPOTS)).sort((a, b) => b.score - a.score || fromAfternoon(a.lon) - fromAfternoon(b.lon));
+      sampled = candidates.length;
+      thunderstormPoints = candidates.filter((c) => c.code >= 95).length;
+    } catch (e2) {
+      console.warn("[lightning/hotspot] hotspot conditions unavailable, ranking by local time:", safeMessage(e2));
+      candidates = HOTSPOTS.map((h) => ({ ...h, code: 0, cape: 0, precip: 0, score: 0 })).sort((a, b) => fromAfternoon(a.lon) - fromAfternoon(b.lon));
+    }
   }
-  if (!best) throw new Error("no storm candidates");
+
+  // 2. Strikes around the best candidates; one failing candidate never sinks the rest.
+  let best: { point: Candidate; strikes: StrikeSummary } | null = null;
+  const errors: string[] = [];
+  for (const cell of candidates.slice(0, MAX_XWEATHER_TRIES)) {
+    const point = refineOk ? await refine(cell).catch(() => cell) : cell;
+    console.info(`[lightning/hotspot] storm candidate ${point.lat.toFixed(2)},${point.lon.toFixed(2)} code ${point.code} cape ${Math.round(point.cape)} rain ${point.precip}`);
+    try {
+      const strikes = await strikeSummary(point.lat, point.lon);
+      if (!best || strikes.count > best.strikes.count) best = { point, strikes };
+      if (strikes.count > 0) break;
+    } catch (e) {
+      errors.push(safeMessage(e));
+    }
+  }
+  if (!best) throw new Error(`no lightning answer: ${errors.join("; ") || "no candidates"}`);
+
   const { point, strikes } = best;
   const named = await reverseGeocode(point.lat, point.lon).catch(() => ({ place: null }));
   const place: Place = named.place
     ? { ...named.place, id: `storm-${point.lat.toFixed(2)},${point.lon.toFixed(2)}`, lat: point.lat, lon: point.lon }
     : { id: `storm-${point.lat.toFixed(2)},${point.lon.toFixed(2)}`, name: "Open water", context: "Active storm", kind: "coords", lat: point.lat, lon: point.lon };
-  return { place, strikes, thunderstormPoints, sampled: coarse.length, fetchedAt: Date.now() };
+  return { place, strikes, thunderstormPoints, sampled, fetchedAt: Date.now() };
 }
+
+export { safeMessage };

@@ -65,7 +65,7 @@ export async function strikeSummary(lat: number, lon: number, radiusKm = LIGHTNI
   const empty: StrikeSummary = { count: 0, cg: 0, ic: 0, from: now - LIGHTNING_WINDOW_MIN * 60_000, to: now, radiusKm };
   // "warn_no_data" is Xweather's way of saying nothing was found: zero strikes, not a failure.
   if (d.error?.code === "warn_no_data") return empty;
-  if (!d.success) throw new LightningUnavailable(d.error?.description || "Xweather error");
+  if (!d.success) throw new LightningUnavailable(`Xweather ${d.error?.code ?? "error"}: ${d.error?.description ?? "no description"}`);
   const r = Array.isArray(d.response) ? d.response[0] : d.response;
   const s = (r?.summary ?? {}) as { range?: { count?: number; fromTimestamp?: number; toTimestamp?: number }; pulse?: { count?: number; cg?: number; ic?: number } };
   return {

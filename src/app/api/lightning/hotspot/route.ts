@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { XWEATHER_ON, LIGHTNING_WINDOW_MIN } from "@/lib/server/xweather";
-import { HOTSPOT_REFRESH_S, cachedHotspot } from "@/lib/server/stormHotspot";
+import { HOTSPOT_REFRESH_S, cachedHotspot, safeMessage } from "@/lib/server/stormHotspot";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +14,8 @@ export async function GET() {
       { headers: { "Cache-Control": `public, max-age=60, s-maxage=${HOTSPOT_REFRESH_S}, stale-while-revalidate=${HOTSPOT_REFRESH_S}` } },
     );
   } catch (e) {
-    console.error("[lightning/hotspot]", e);
-    return NextResponse.json({ available: false, reason: "upstream error" }, { headers: { "Cache-Control": "public, max-age=60" } });
+    console.error("[lightning/hotspot]", safeMessage(e));
+    // The detail carries no keys (safeMessage strips them); it makes a failure diagnosable from outside.
+    return NextResponse.json({ available: false, reason: "upstream error", detail: safeMessage(e) }, { headers: { "Cache-Control": "public, max-age=60" } });
   }
 }
