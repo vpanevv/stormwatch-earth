@@ -1,5 +1,5 @@
 <p align="center">
-  <a href="https://stormwatchearth.netlify.app">
+  <a href="https://stormwatch.earth">
     <picture>
       <source media="(prefers-color-scheme: dark)" srcset="public/brand/wordmark.png">
       <img src="public/brand/wordmark-ink.png" alt="StormWatch." width="260">
@@ -15,21 +15,23 @@
 </p>
 
 <p align="center">
-  <a href="https://stormwatchearth.netlify.app"><b>stormwatchearth.netlify.app</b></a>
+  <a href="https://stormwatch.earth"><b>stormwatch.earth</b></a>
   <br>
   <sub>Next.js · React Three Fiber · Open-Meteo · RainViewer · NASA GIBS · MIT licensed</sub>
 </p>
 
 <p align="center">
-  <a href="https://stormwatchearth.netlify.app">
+  <a href="https://stormwatch.earth">
     <img src="docs/readme/landing.jpg" width="100%" alt="The StormWatch landing page. On the left, the wordmark with How this works and Open source links, the headline 'Every storm, watched live from orbit.', a search field with Use my location, and example places Razlog, Sofia, Tokyo and Surprise me. On the right, the globe over the Atlantic and Africa with live radar echoes over Europe and city lights on the night side.">
   </a>
   <br>
-  <sub>The landing page, 27 November 2026. <a href="https://stormwatchearth.netlify.app">Open it live</a>.</sub>
+  <sub>The landing page, 27 November 2026. <a href="https://stormwatch.earth">Open it live</a>.</sub>
 </p>
 
 ## What it does
 
+- **Counts the lightning live.** The landing page leads with the strikes hitting the most active storm on Earth right
+  now, and every place and dropped pin shows the strikes within 100 km in the last 5 minutes, from Xweather.
 - **Shows the weather on the planet.** Live radar from RainViewer, clouds, snow cover and falling snow, lightning,
   storm cells, temperature and wind, as layers you switch on and off on a photoreal Earth lit by the real sun.
 - **Makes the forecast the main view.** Lock onto a place and a wide deck opens under the globe: the conditions now,
@@ -42,11 +44,11 @@
   a PNG or send as a link.
 
 <p align="center">
-  <a href="https://stormwatchearth.netlify.app/?q=41.8831,23.4673&n=Razlog&c=Blagoevgrad,%20Bulgaria">
+  <a href="https://stormwatch.earth/?q=41.8831,23.4673&n=Razlog&c=Blagoevgrad,%20Bulgaria">
     <img src="docs/readme/app.jpg" width="100%" alt="The app locked on Razlog, Bulgaria. Radar echoes over the Balkans and Italy, an orange radar-lock reticle on Razlog, the layer toolbar along the top and legends for precipitation, snowfall and lightning. The forecast deck below shows 10° and light rain, hourly cards and a 48-hour chart where the rain turns to snow on Sunday; the sidebar on the right lists cloud cover, humidity, wind, rain intensity and snow depth.">
   </a>
   <br>
-  <sub>Razlog, Bulgaria: rain today, turning to snow on Sunday. <a href="https://stormwatchearth.netlify.app/?q=41.8831,23.4673&n=Razlog&c=Blagoevgrad,%20Bulgaria">Open it live</a>.</sub>
+  <sub>Razlog, Bulgaria: rain today, turning to snow on Sunday. <a href="https://stormwatch.earth/?q=41.8831,23.4673&n=Razlog&c=Blagoevgrad,%20Bulgaria">Open it live</a>.</sub>
 </p>
 
 <p align="center">
@@ -67,11 +69,12 @@ never confused.
 | Radar | Rain and snow echoes, the last ~2 hours (RainViewer) | Precipitation further back than the radar archive |
 | Clouds | Cloud cover at the selected place | The global cloud field, unless an OpenWeather key is set |
 | Snow | Snowfall and snow depth at the place, radar snow | Snow cover and snowfall elsewhere, from a climate model |
-| Lightning | | Strikes and storm cells: there is no free public lightning feed |
+| Lightning | Strike counts within 100 km, the last 5 minutes (Xweather); the storm is found with Open-Meteo | The flashes drawn on the globe and the storm cells |
 
 **What it can't see.** Radar only exists where countries run it and share it, so oceans and much of Africa and Asia
 have none. The forecast is a model run, not an observation. The lightning is a stand-in drawn from where storms
-usually form; a licensed feed plugs in behind one interface.
+usually form. Xweather's free plan only counts the last 5 minutes around a point, so there is no worldwide total: the
+landing number is for the most active storm the app can find, and it says so.
 
 ## How it works
 
@@ -119,7 +122,7 @@ the rendering pipeline.
 
 - **No accounts, no analytics, no cookies.** Your last place is kept in your own browser's local storage.
 - **Places go to the providers.** A forecast or a name lookup sends the place's coordinates, or your search, through
-  this app's server to Open-Meteo, Nominatim or Photon. Radar, map and satellite tiles load straight from RainViewer,
+  this app's server to Open-Meteo, Xweather, Nominatim or Photon. Radar, map and satellite tiles load straight from RainViewer,
   OpenStreetMap and NASA.
 - **Mostly offline names.** Clicking the globe names the spot from a list that ships with the site.
 - **Your location stays your choice.** *Use my location* asks the browser each time, and the position is only used to
@@ -154,6 +157,8 @@ node scripts/render-wordmark.mjs   # the wordmark images at the top of this page
 |:--|:--|
 | `OPENWEATHER_API_KEY` | Optional. Live current conditions, cloud and temperature tiles from OpenWeather. |
 | `NOMINATIM_USER_AGENT` | Identifies the app to Nominatim, as its usage policy asks. |
+| `XWEATHER_CLIENT_ID`, `XWEATHER_CLIENT_SECRET` | Live lightning counts. A free [Xweather Developer](https://www.xweather.com/pricing) key (15,000 accesses a month); without it lightning shows as offline. |
+| `LIGHTNING_REFRESH_SECONDS`, `LIGHTNING_HOTSPOT_REFRESH_SECONDS` | Optional. How long a strike count is reused (600 s) and the landing storm (900 s). The server logs each call's cost. |
 | `NEXT_PUBLIC_SITE_URL` | Optional. The site's address for link previews; on Netlify it defaults to the site's URL. |
 
 | URL | |
@@ -188,6 +193,7 @@ docs/               architecture and the images on this page
 |:--|:--|
 | Weather | Forecast and current conditions from [Open-Meteo](https://open-meteo.com) ([CC BY 4.0](https://creativecommons.org/licenses/by/4.0/); the free tier is for non-commercial use). [OpenWeather](https://openweathermap.org) when a key is set. |
 | Radar | © [RainViewer](https://www.rainviewer.com). |
+| Lightning | Strike counts from [Xweather](https://www.xweather.com) (Vaisala). |
 | Imagery | NASA's [GIBS](https://www.earthdata.nasa.gov/gibs), part of EOSDIS: Blue Marble Next Generation, and VIIRS on NOAA-20 and Suomi NPP. |
 | Places | The offline town list is built from [GeoNames](https://www.geonames.org) ([CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)), as tiled by Watched. [Open-Meteo](https://open-meteo.com), [Photon](https://photon.komoot.io) by komoot and [Nominatim](https://nominatim.org) answer the rest. Map data © [OpenStreetMap contributors](https://www.openstreetmap.org/copyright) (ODbL). |
 | Textures | [Solar System Scope](https://www.solarsystemscope.com/textures/) ([CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)), from NASA Blue Marble and Black Marble; resized and repacked by Watched. Elevation from [three-globe](https://github.com/vasturiano/three-globe) (MIT). |
