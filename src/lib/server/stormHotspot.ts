@@ -17,11 +17,12 @@ import { LIGHTNING_REFRESH_S, strikeSummary, type StrikeSummary } from "./xweath
  * The answer is cached for HOTSPOT_REFRESH_S, so every visitor sees the same storm and it costs Xweather a request or
  * two per refresh, not per visit.
  */
-export const HOTSPOT_REFRESH_S = Math.max(LIGHTNING_REFRESH_S, Number(process.env.LIGHTNING_HOTSPOT_REFRESH_SECONDS) || 900);
+/** One summary call costs Xweather 1 access (measured): 4 tries every 20 min is ≤ ~8,600 a month, worst case. */
+export const HOTSPOT_REFRESH_S = Math.max(LIGHTNING_REFRESH_S, Number(process.env.LIGHTNING_HOTSPOT_REFRESH_SECONDS) || 1200);
 /** Open-Meteo counts each location as a call (10,000 a day free): ~250 points every 2 h stays far inside it. */
 const GRID_REFRESH_S = 7200;
 /** Xweather requests per refresh at most (the first storm with strikes ends the search). */
-const MAX_XWEATHER_TRIES = 3;
+const MAX_XWEATHER_TRIES = 4;
 
 type OMCurrent = { latitude: number; longitude: number; current?: { weather_code?: number; precipitation?: number; cape?: number } };
 type Candidate = { lat: number; lon: number; code: number; cape: number; precip: number; score: number };
@@ -33,6 +34,10 @@ export type Hotspot = {
   thunderstormPoints: number;
   sampled: number;
   fetchedAt: number;
+  /** Every place asked this round and what came back: makes an empty answer explainable. */
+  tried: { lat: number; lon: number; from: "thunderstorm" | "hotspot"; code: number; strikes?: number; error?: string }[];
+  /** Which Open-Meteo requests worked this round. */
+  conditions: { grid: boolean; hotspots: boolean; refine: boolean };
 };
 
 let tileBits: Uint8Array | undefined;
@@ -140,47 +145,57 @@ export async function findHotspot(): Promise<Hotspot> {
   let sampled = 0;
   let thunderstormPoints = 0;
   let grid: Candidate[] = [];
+  const conditions = { grid: false, hotspots: false, refine: true };
   try {
     grid = (await current(LAND_GRID)).sort((a, b) => b.score - a.score);
     sampled = grid.length;
     thunderstormPoints = grid.filter((c) => c.code >= 95).length;
+    conditions.grid = true;
   } catch (e) {
     console.warn("[lightning/hotspot] grid unavailable:", safeMessage(e));
   }
   let known: Candidate[];
   try {
     known = (await current(HOTSPOTS)).sort((a, b) => b.score - a.score || fromAfternoon(a.lon) - fromAfternoon(b.lon));
+    conditions.hotspots = true;
   } catch (e) {
     console.warn("[lightning/hotspot] hotspot conditions unavailable, ranking by local time:", safeMessage(e));
     known = HOTSPOTS.map((h) => ({ ...h, code: 0, cape: 0, precip: 0, score: 0 })).sort((a, b) => fromAfternoon(a.lon) - fromAfternoon(b.lon));
   }
   const stormy = grid.filter((c) => c.code >= 95).slice(0, 2);
-  const queue: { cell: Candidate; refine: boolean }[] = [
-    ...stormy.map((cell) => ({ cell, refine: true })),
-    ...known.slice(0, MAX_XWEATHER_TRIES).map((cell) => ({ cell, refine: false })),
+  // A thunderstorm cell first, then the hotspots (at most half the tries go to grid cells).
+  const queue: { cell: Candidate; refine: boolean; from: "thunderstorm" | "hotspot" }[] = [
+    ...stormy.slice(0, Math.ceil(MAX_XWEATHER_TRIES / 2)).map((cell) => ({ cell, refine: true, from: "thunderstorm" as const })),
+    ...known.slice(0, MAX_XWEATHER_TRIES).map((cell) => ({ cell, refine: false, from: "hotspot" as const })),
   ].slice(0, MAX_XWEATHER_TRIES);
+  const tried: Hotspot["tried"] = [];
 
   // 2. Strikes around each, in turn, until one has lightning; a failing candidate never sinks the rest.
   let best: { point: Candidate; strikes: StrikeSummary } | null = null;
   const errors: string[] = [];
   let refineOk = true;
-  for (const { cell, refine: wantRefine } of queue) {
+  for (const { cell, refine: wantRefine, from } of queue) {
     let point = cell;
     if (wantRefine && refineOk) {
       try {
         point = await refine(cell);
       } catch (e) {
         refineOk = false; // Open-Meteo is refusing big requests: don't ask again this round
+        conditions.refine = false;
         console.warn("[lightning/hotspot] refine unavailable:", safeMessage(e));
       }
     }
     console.info(`[lightning/hotspot] storm candidate ${point.lat.toFixed(2)},${point.lon.toFixed(2)} code ${point.code} cape ${Math.round(point.cape)} rain ${point.precip}`);
+    const entry: Hotspot["tried"][number] = { lat: +point.lat.toFixed(2), lon: +point.lon.toFixed(2), from, code: point.code };
+    tried.push(entry);
     try {
       const strikes = await strikeSummary(point.lat, point.lon);
+      entry.strikes = strikes.count;
       if (!best || strikes.count > best.strikes.count) best = { point, strikes };
       if (strikes.count > 0) break;
     } catch (e) {
-      errors.push(safeMessage(e));
+      entry.error = safeMessage(e);
+      errors.push(entry.error);
     }
   }
   if (!best) throw new Error(`no lightning answer: ${errors.join("; ") || "no candidates"}`);
@@ -190,7 +205,7 @@ export async function findHotspot(): Promise<Hotspot> {
   const place: Place = named.place
     ? { ...named.place, id: `storm-${point.lat.toFixed(2)},${point.lon.toFixed(2)}`, lat: point.lat, lon: point.lon }
     : { id: `storm-${point.lat.toFixed(2)},${point.lon.toFixed(2)}`, name: "Open water", context: "Active storm", kind: "coords", lat: point.lat, lon: point.lon };
-  return { place, strikes, thunderstormPoints, sampled, fetchedAt: Date.now() };
+  return { place, strikes, thunderstormPoints, sampled, fetchedAt: Date.now(), tried, conditions };
 }
 
 export { safeMessage };
