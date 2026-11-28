@@ -14,7 +14,7 @@ export function Sidebar() {
   const owm = useAppStore((s) => s.config.openweather);
 
   return (
-    <div className="panel flex min-h-0 flex-1 flex-col">
+    <div className="panel bright-data flex min-h-0 flex-1 flex-col">
       <div className="flex items-center justify-between border-b border-line px-5 py-2.5">
         <span className="label">{selection ? "Location lock" : "Overview"}</span>
         {selection && (

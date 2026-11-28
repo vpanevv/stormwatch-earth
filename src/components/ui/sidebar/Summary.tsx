@@ -11,6 +11,7 @@ import { fmtInt, fmtOffset, fmtTime } from "@/lib/format";
 import { precipRGB } from "@/lib/radar/decode";
 import { IconArrow } from "../icons";
 import { Metric, SectionHeader, Skeleton, SourceBadge } from "../primitives";
+import { SunEventLine } from "../SunEvent";
 
 const LocalRadarMap = dynamic(() => import("./LocalRadarMap"), {
   ssr: false,
@@ -75,6 +76,8 @@ export function Summary({ place: sel }: { place: Place }) {
               <div className="font-mono text-[10px] text-mute">Feels like {Math.round(w.current.feelsLike)}°</div>
             </div>
           </div>
+
+          <SunEventLine w={w} className="mt-3" />
 
           <div className="mt-4 grid grid-cols-2 gap-x-5 gap-y-3">
             <Metric label="Cloud cover" value={Math.round(w.current.cloudCover)} unit="%" bar={w.current.cloudCover} />

@@ -124,3 +124,14 @@ export const IconShare = (p: SVGProps<SVGSVGElement>) => (
     <path d="M5 12v7h14v-7" />
   </svg>
 );
+/** Half a sun on the horizon with rays, and an arrow up (sunrise) or down (sunset). */
+const SunHorizon = ({ up, ...p }: SVGProps<SVGSVGElement> & { up: boolean }) => (
+  <svg {...base(p)}>
+    <path d="M7 17a5 5 0 0 1 10 0" />
+    <path d="M3 17h18M5 21h14" />
+    <path d="M12 7v1.5M5.6 10.6l1.1 1.1M18.4 10.6l-1.1 1.1M3.5 14H5M20.5 14H19" />
+    {up ? <path d="M12 2v4M10.2 3.8 12 2l1.8 1.8" /> : <path d="M12 2v4M10.2 4.2 12 6l1.8-1.8" />}
+  </svg>
+);
+export const IconSunrise = (p: SVGProps<SVGSVGElement>) => <SunHorizon up {...p} />;
+export const IconSunset = (p: SVGProps<SVGSVGElement>) => <SunHorizon up={false} {...p} />;

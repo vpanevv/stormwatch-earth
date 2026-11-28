@@ -63,6 +63,9 @@ export type DailyPoint = {
   snowfallSum: number; // cm
   precipProbMax: number;
   windMax: number;
+  /** Local sunrise and sunset (epoch ms); absent in polar day or night, or when the provider doesn't say. */
+  sunrise?: number;
+  sunset?: number;
   weatherCode: number;
 };
 

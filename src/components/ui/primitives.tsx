@@ -56,17 +56,17 @@ export function Metric({
 }) {
   return (
     <div className="min-w-0 border-t border-line pt-2.5">
-      <div className="label !text-[9px]">{label}</div>
+      <div className="label !text-[10px]">{label}</div>
       <div className="mt-1 flex items-baseline gap-1">
-        <span className="text-[20px] font-extralight tabular-nums text-ink">{value}</span>
-        {unit && <span className="font-mono text-[10px] text-mute">{unit}</span>}
+        <span className="text-[22px] font-light tabular-nums text-white">{value}</span>
+        {unit && <span className="font-mono text-[11px] text-mute">{unit}</span>}
       </div>
       {bar !== undefined && (
         <div className="mt-1.5 h-px w-full bg-white/10">
           <div className={`h-px ${barColor}`} style={{ width: `${Math.max(0, Math.min(100, bar))}%` }} />
         </div>
       )}
-      {sub && <div className="mt-1 truncate font-mono text-[10px] text-mute">{sub}</div>}
+      {sub && <div className="mt-1 truncate font-mono text-[11px] text-mute">{sub}</div>}
     </div>
   );
 }

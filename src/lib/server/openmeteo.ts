@@ -43,6 +43,8 @@ type OMResponse = {
     precipitation_probability_max: (number | null)[];
     wind_speed_10m_max: number[];
     snowfall_sum: (number | null)[];
+    sunrise?: (number | null)[];
+    sunset?: (number | null)[];
   };
 };
 
@@ -56,7 +58,7 @@ export async function fetchOpenMeteo(p: LatLon) {
     hourly:
       "temperature_2m,precipitation_probability,precipitation,weather_code,cloud_cover,wind_speed_10m,wind_gusts_10m,cape,snowfall,snow_depth",
     daily:
-      "weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,snowfall_sum",
+      "weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max,snowfall_sum,sunrise,sunset",
     past_days: "1",
     forecast_days: "7",
     timezone: "auto",
@@ -89,6 +91,9 @@ export async function fetchOpenMeteo(p: LatLon) {
     snowfallSum: d.daily.snowfall_sum[i] ?? 0,
     precipProbMax: d.daily.precipitation_probability_max[i] ?? 0,
     windMax: d.daily.wind_speed_10m_max[i] ?? 0,
+    // Open-Meteo returns 0 (1970) or nothing when the sun doesn't rise or set that day.
+    sunrise: d.daily.sunrise?.[i] ? d.daily.sunrise[i]! * 1000 : undefined,
+    sunset: d.daily.sunset?.[i] ? d.daily.sunset[i]! * 1000 : undefined,
     weatherCode: d.daily.weather_code[i] ?? 0,
   }));
   // past_days=1 prepends yesterday; the forecast view wants today onward.

@@ -4,6 +4,7 @@ import type { Place, WeatherBundle } from "@/types/weather";
 import { codeGlyph, describeCode } from "@/lib/weatherCodes";
 import { compass, formatLat, formatLon } from "@/lib/geo";
 import { fmtDate, fmtDay, fmtTime } from "@/lib/format";
+import { nextSunEvent } from "@/lib/sun";
 
 export const CARD_W = 1200;
 export const CARD_H = 630;
@@ -126,7 +127,7 @@ export async function renderShareCard(place: Place, w: WeatherBundle, orbit: Orb
   ctx.scale(SCALE, SCALE);
   ctx.textBaseline = "alphabetic";
 
-  const INK = "#07090c", BONE = "#ece8e0", MUTE = "#8c96a3", FAINT = "#4d5560", ACCENT = "#ff7a1a", LINE = "rgba(255,255,255,0.1)";
+  const INK = "#07090c", BONE = "#ece8e0", MUTE = "#c9cfd6", FAINT = "#929ba6", ACCENT = "#ff7a1a", LINE = "rgba(255,255,255,0.12)";
   ctx.fillStyle = INK;
   ctx.fillRect(0, 0, CARD_W, CARD_H);
 
@@ -241,9 +242,36 @@ export async function renderShareCard(place: Place, w: WeatherBundle, orbit: Orb
     .filter(Boolean)
     .join("  ·  ");
   ctx.fillText(sub.length > 60 ? sub.slice(0, 58) + "…" : sub, X, 270);
-  ctx.fillStyle = "#cfd6de";
+  // Outlook on the left, the next sun event (local time) on the right of the same row.
+  const sunEv = nextSunEvent(w.daily, w.current.isDay);
+  let sunW = 0;
+  if (sunEv) {
+    const rise = sunEv.kind === "sunrise" || sunEv.kind === "polar-night";
+    const label = sunEv.kind === "sunrise" || sunEv.kind === "sunset" ? sunEv.kind.toUpperCase() : sunEv.kind === "polar-day" ? "MIDNIGHT SUN" : "POLAR NIGHT";
+    const time = sunEv.kind === "sunrise" || sunEv.kind === "sunset" ? fmtTime(sunEv.time, w.utcOffsetSeconds) : "";
+    ctx.font = `500 19px ${mono}`;
+    const tw = time ? ctx.measureText(time).width : 0;
+    ctx.font = `400 12px ${mono}`;
+    const lw = trackedWidth(ctx, label, 1.6);
+    sunW = 26 + 8 + lw + (time ? 10 + tw : 0);
+    let x = R - sunW;
+    drawSunIcon(ctx, x, 300 - 6, rise, rise ? "#fde68a" : ACCENT);
+    x += 34;
+    ctx.fillStyle = MUTE;
+    ctx.font = `400 12px ${mono}`;
+    tracked(ctx, label, x, 299, 1.6);
+    if (time) {
+      ctx.fillStyle = BONE;
+      ctx.font = `500 19px ${mono}`;
+      ctx.fillText(time, x + lw + 10, 301);
+    }
+  }
+  ctx.fillStyle = "#e3e8ee";
   ctx.font = `400 17px ${sans}`;
-  ctx.fillText(outlook(w), X, 300);
+  let look = outlook(w);
+  const room = R - X - (sunW ? sunW + 24 : 0);
+  while (look.length > 4 && ctx.measureText(look).width > room) look = look.slice(0, -2).trimEnd() + "…";
+  ctx.fillText(look, X, 300);
 
   // stats
   const next24 = w.hourly.filter((h) => h.time > Date.now() && h.time <= Date.now() + 86_400_000);
@@ -330,10 +358,50 @@ export function shareLink(place: Place) {
 }
 
 export function shareText(place: Place, w: WeatherBundle) {
-  return `${Math.round(w.current.temperature)}° and ${describeCode(w.current.weatherCode).toLowerCase()} in ${place.name} right now. ${outlook(w)}.`;
+  const ev = nextSunEvent(w.daily, w.current.isDay);
+  const sun =
+    ev && (ev.kind === "sunrise" || ev.kind === "sunset")
+      ? ` ${ev.kind === "sunrise" ? "Sunrise" : "Sunset"} at ${fmtTime(ev.time, w.utcOffsetSeconds)}.`
+      : ev?.kind === "polar-night"
+        ? " Polar night."
+        : ev?.kind === "polar-day"
+          ? " Midnight sun."
+          : "";
+  return `${Math.round(w.current.temperature)}° and ${describeCode(w.current.weatherCode).toLowerCase()} in ${place.name} right now. ${outlook(w)}.${sun}`;
 }
 
 export function cardFileName(place: Place) {
   const slug = place.name.toLowerCase().normalize("NFD").replace(/[^\w]+/g, "-").replace(/^-|-$/g, "") || "place";
   return `stormwatch-${slug}-${new Date().toISOString().slice(0, 10)}.png`;
+}
+
+/** Width of tracked (letter-spaced) text as `tracked` draws it. */
+function trackedWidth(ctx: CanvasRenderingContext2D, text: string, spacing: number) {
+  return ctx.measureText(text).width + spacing * Math.max(0, text.length - 1);
+}
+
+/** The sunrise/sunset icon (ui/icons.tsx SunHorizon) drawn on the card: 26 px wide, centred on y. */
+function drawSunIcon(ctx: CanvasRenderingContext2D, x: number, y: number, up: boolean, color: string) {
+  const k = 26 / 24;
+  ctx.save();
+  ctx.translate(x, y - 13);
+  ctx.scale(k, k);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1.6;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.beginPath();
+  ctx.arc(12, 17, 5, Math.PI, 0); // the sun on the horizon
+  ctx.moveTo(3, 17); ctx.lineTo(21, 17);
+  ctx.moveTo(5, 21); ctx.lineTo(19, 21);
+  ctx.moveTo(12, 7); ctx.lineTo(12, 8.5);
+  ctx.moveTo(5.6, 10.6); ctx.lineTo(6.7, 11.7);
+  ctx.moveTo(18.4, 10.6); ctx.lineTo(17.3, 11.7);
+  ctx.moveTo(3.5, 14); ctx.lineTo(5, 14);
+  ctx.moveTo(20.5, 14); ctx.lineTo(19, 14);
+  ctx.moveTo(12, 2); ctx.lineTo(12, 6);
+  if (up) { ctx.moveTo(10.2, 3.8); ctx.lineTo(12, 2); ctx.lineTo(13.8, 3.8); }
+  else { ctx.moveTo(10.2, 4.2); ctx.lineTo(12, 6); ctx.lineTo(13.8, 4.2); }
+  ctx.stroke();
+  ctx.restore();
 }

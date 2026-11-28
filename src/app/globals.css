@@ -209,3 +209,15 @@ input[type="range"].scrubber:focus-visible {
     transform: translateY(4px);
   }
 }
+
+/* Brighter data text inside the place panel and the share popup: labels, units and sub-lines that use the muted
+   tokens read near-white there (the data is the point of those panels). */
+.bright-data .label {
+  color: rgba(236, 232, 224, 0.82);
+}
+.bright-data .text-mute {
+  color: rgba(236, 232, 224, 0.86);
+}
+.bright-data .text-faint {
+  color: rgba(236, 232, 224, 0.62);
+}

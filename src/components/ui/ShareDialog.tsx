@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useAppStore } from "@/store/useAppStore";
+import { AppIcon } from "./LiveLightning";
 import { cardFileName, loadOrbitImage, renderShareCard, shareLink, shareText } from "@/lib/shareCard";
 import { IconClose } from "./icons";
 
@@ -125,11 +126,11 @@ export function ShareDialog() {
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 10, opacity: 0 }}
             transition={{ duration: 0.25, ease: "easeOut" }}
-            className="scroll-thin max-h-full w-full max-w-[920px] overflow-y-auto border border-line bg-[#090c10] p-4 md:p-7"
+            className="bright-data scroll-thin max-h-full w-full max-w-[920px] overflow-y-auto border border-line bg-[#090c10] p-4 md:p-7"
           >
             <div className="mb-4 flex items-center gap-4">
-              <span className="h-px w-6 bg-white/20" />
-              <span className="label !text-[11px] !text-ink/80">Share this forecast</span>
+              <AppIcon className="h-9 w-9" />
+              <span className="label !text-[11px] !text-ink">Share this forecast</span>
               <span className="h-px flex-1 bg-white/10" />
               <button ref={closeBtn} onClick={() => setOpen(false)} aria-label="Close" className="p-1 text-mute hover:text-ink">
                 <IconClose width={18} height={18} />
@@ -187,14 +188,14 @@ export function ShareDialog() {
             <dl className="mt-5 divide-y divide-white/10 border-t border-white/10 text-[13px]">
               <div className="grid grid-cols-[56px_1fr_auto] items-center gap-3 py-3">
                 <dt className="label">Link</dt>
-                <dd className="truncate font-mono text-[12px] text-ink/90">{link}</dd>
+                <dd className="truncate font-mono text-[12px] text-white">{link}</dd>
                 <button onClick={() => copy(link, "Link")} className="label hover:!text-ink">
                   Copy
                 </button>
               </div>
               <div className="grid grid-cols-[56px_1fr_auto] items-start gap-3 py-3">
                 <dt className="label pt-0.5">Post</dt>
-                <dd className="text-ink/80">{text}</dd>
+                <dd className="text-white">{text}</dd>
                 <button onClick={() => copy(`${text} ${link}`, "Post")} className="label pt-0.5 hover:!text-ink">
                   Copy
                 </button>
