@@ -71,7 +71,7 @@ export function LightningHero({ hot, now, onWatch, compact = false }: { hot: Lig
 
   if (compact) {
     return (
-      <button onClick={onWatch} className="flex items-center gap-3 bg-[#020306]/75 py-2 pl-2 pr-4 text-left backdrop-blur-sm">
+      <button onClick={onWatch} className="flex items-center gap-3 text-left">
         <Bolt className="h-7 w-7 shrink-0 text-accent drop-shadow-[0_0_10px_rgba(255,122,26,0.7)]" />
         <span>
           <span className="block font-display text-[34px] font-semibold leading-none text-[#ece8e0] [font-stretch:80%]">
@@ -135,7 +135,7 @@ function WorldEstimate({ now, compact = false }: { now: number; compact?: boolea
   const rate = Math.round(globalFlashRate(now));
   if (compact) {
     return (
-      <div className="bg-[#020306]/75 px-3 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-ink/85 backdrop-blur-sm">
+      <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-ink/85">
         ⚡ ≈ {fmtInt(est)} strikes worldwide · last 5 min · estimated
       </div>
     );

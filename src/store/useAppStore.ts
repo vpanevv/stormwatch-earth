@@ -69,6 +69,8 @@ type State = {
   pin: DroppedPin | null;
   /** Screen space the UI panels cover (CSS px), so overlays on the globe stay clear of them. */
   uiInsets: { top: number; right: number; bottom: number; left: number };
+  /** On a phone's landing, the clear band (px from the top) between the header and the hero copy, where the planet sits. */
+  landingBand: { top: number; bottom: number } | null;
 };
 
 export type DroppedPin = { id: number; lat: number; lon: number };
@@ -106,6 +108,7 @@ type Actions = {
   dropPin: (p: LatLon) => void;
   clearPin: () => void;
   setUiInsets: (i: State["uiInsets"]) => void;
+  setLandingBand: (b: State["landingBand"]) => void;
 };
 
 export const useAppStore = create<State & Actions>()((set, get) => ({
@@ -136,6 +139,7 @@ export const useAppStore = create<State & Actions>()((set, get) => ({
   liveLightning: null,
   pin: null,
   uiInsets: { top: 0, right: 0, bottom: 0, left: 0 },
+  landingBand: null,
 
   setConfig: (config) => set({ config, configReady: true }),
   select: (selection, opts) => {
@@ -199,6 +203,10 @@ export const useAppStore = create<State & Actions>()((set, get) => ({
   setLiveLightning: (liveLightning) => set({ liveLightning }),
   dropPin: (p) => set({ pin: { id: Date.now(), lat: Math.round(p.lat * 1e5) / 1e5, lon: Math.round(p.lon * 1e5) / 1e5 } }),
   clearPin: () => set({ pin: null }),
+  setLandingBand: (b) => {
+    const c = get().landingBand;
+    if (b?.top !== c?.top || b?.bottom !== c?.bottom) set({ landingBand: b });
+  },
   setUiInsets: (uiInsets) => {
     const c = get().uiInsets;
     if (c.top !== uiInsets.top || c.right !== uiInsets.right || c.bottom !== uiInsets.bottom || c.left !== uiInsets.left) set({ uiInsets });

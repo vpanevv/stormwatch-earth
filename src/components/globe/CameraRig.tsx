@@ -9,6 +9,8 @@ import { selectCoordinates } from "@/lib/actions";
 
 const MIN_DIST = 1.2;
 const MAX_DIST = 10;
+/** The landing may stand further off, so a short phone screen still fits the whole planet between header and copy. */
+const LANDING_MAX_DIST = 18;
 const FOV = 35;
 /** Inertia after a throw decays with this time constant (s); holding still before release stops it faster. */
 const SPIN_TAU = 0.32;
@@ -105,6 +107,7 @@ export function CameraRig({
   const lastAlt = useRef(0);
   const fly = useAppStore((s) => s.fly);
   const entered = useAppStore((s) => s.entered);
+  const band = useAppStore((s) => s.landingBand);
   const home = () => homeDistance(size.width, size.height, sidebarOffset, bottomOffset, topOffset);
 
   // Shift the projection so the globe centres in the space left of the sidebar and above the deck.
@@ -112,21 +115,40 @@ export function CameraRig({
   useEffect(() => {
     const cam = camera as THREE.PerspectiveCamera;
     // Pre-entry on wide screens the planet sits right of the intro copy.
-    // Landing: the planet sits right of the hero column on wide screens, above the panel on phones.
+    // Landing: the planet sits right of the hero column on wide screens; on phones, whole, in the clear band
+    // between the header and the hero copy.
     const wide = size.width >= 1024;
     const ox = entered ? sidebarOffset / 2 : wide ? -size.width * 0.21 : 0;
-    const oy = entered ? (bottomOffset - topOffset) / 2 : wide ? 0 : size.height * 0.28;
+    const oy = entered
+      ? (bottomOffset - topOffset) / 2
+      : wide
+        ? 0
+        : band
+          ? size.height / 2 - (band.top + band.bottom) / 2
+          : size.height * 0.28;
     if (ox || oy) cam.setViewOffset(size.width, size.height, ox, oy, size.width, size.height);
     else cam.clearViewOffset();
     cam.updateProjectionMatrix();
-  }, [camera, size.width, size.height, sidebarOffset, bottomOffset, topOffset, entered]);
+  }, [camera, size.width, size.height, sidebarOffset, bottomOffset, topOffset, entered, band]);
 
-  // Diameter ≈ 72% of the height on wide screens, ≈ 86% of the width on phones.
+  // Diameter ≈ 72% of the height on wide screens; on phones as big as fits whole in the clear band (≤ 80% of
+  // the width), with a little air above and below.
   const landingDistance = () => {
     const wide = size.width >= 1024;
-    const radiusPx = wide ? Math.min(0.34 * size.height, 0.2 * size.width) : 0.34 * size.width;
-    return THREE.MathUtils.clamp(size.height / 2 / (HALF_FOV_TAN * radiusPx), 3.6, MAX_DIST);
+    const radiusPx = wide
+      ? Math.min(0.34 * size.height, 0.2 * size.width)
+      : band
+        ? Math.max(60, Math.min(0.4 * size.width, 0.42 * (band.bottom - band.top)))
+        : 0.34 * size.width;
+    // A near sphere's silhouette is a little wider than this pinhole estimate; the + 0.15 pulls back to cover it.
+    return THREE.MathUtils.clamp(size.height / 2 / (HALF_FOV_TAN * radiusPx) + 0.15, 3.6, LANDING_MAX_DIST);
   };
+
+  // While on the landing, a new band (the copy reflowed, the phone rotated) eases the planet to its new size.
+  useEffect(() => {
+    if (entered || flight.current) return;
+    zoomTarget.current = Math.log(landingDistance() - 1);
+  }, [band, size.width, size.height]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Before entry the planet turns slowly in deep space, behind the intro screen.
   useEffect(() => {
@@ -176,7 +198,7 @@ export function CameraRig({
       from,
       q: new THREE.Quaternion().setFromUnitVectors(from, to),
       fromDist,
-      toDist: THREE.MathUtils.clamp(toDist, MIN_DIST, MAX_DIST),
+      toDist: THREE.MathUtils.clamp(toDist, MIN_DIST, LANDING_MAX_DIST),
       arc: Math.min(1.2, angle * 0.45),
       start: performance.now(),
       duration: duration * 1000,
@@ -436,7 +458,7 @@ export function CameraRig({
 
       P.lat = THREE.MathUtils.clamp(P.lat, -MAX_LAT * DEG, MAX_LAT * DEG);
       P.lon = Math.atan2(Math.sin(P.lon), Math.cos(P.lon));
-      P.alt = THREE.MathUtils.clamp(P.alt, MIN_DIST - 1, MAX_DIST - 1);
+      P.alt = THREE.MathUtils.clamp(P.alt, MIN_DIST - 1, (s.entered ? MAX_DIST : LANDING_MAX_DIST) - 1);
       applyPose(camera, P);
     }
 

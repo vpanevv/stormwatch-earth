@@ -104,12 +104,38 @@ function LandingView() {
   const [open, setOpen] = useState(false);
   const [locNote, setLocNote] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const headerRef = useRef<HTMLElement>(null);
+  const heroRef = useRef<HTMLElement>(null);
   const listId = useId();
   const locate = useMyLocation();
 
   useEffect(() => {
     const id = setTimeout(() => setShown(true), 250);
     return () => clearTimeout(id);
+  }, []);
+
+  // On phones the planet sits whole in the clear band between the header and the hero copy (CameraRig frames it).
+  useEffect(() => {
+    const header = headerRef.current, hero = heroRef.current;
+    if (!header || !hero) return;
+    const phone = window.matchMedia("(max-width: 1023px)");
+    const measure = () => {
+      if (!phone.matches) return useAppStore.getState().setLandingBand(null);
+      const top = Math.round(header.getBoundingClientRect().bottom + 6);
+      const bottom = Math.round(hero.getBoundingClientRect().top - 6);
+      useAppStore.getState().setLandingBand({ top, bottom: Math.max(top + 80, bottom) });
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(hero);
+    ro.observe(header);
+    window.addEventListener("resize", measure);
+    phone.addEventListener("change", measure);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", measure);
+      phone.removeEventListener("change", measure);
+    };
   }, []);
 
   /** Pick → dive. Selection first, so the entry flight targets it. */
@@ -173,12 +199,12 @@ function LandingView() {
       exit={{ opacity: 0, x: -24, filter: "blur(4px)" }}
       transition={{ duration: 0.7, ease }}
     >
-      {/* ink behind the text column; the planet stays clear on the right / top */}
-      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(0deg,#020306_42%,rgba(2,3,6,0.6)_62%,transparent_80%)] lg:bg-[linear-gradient(90deg,#020306_30%,rgba(2,3,6,0.75)_45%,transparent_62%)]" />
+      {/* ink behind the text column on wide screens; on phones the planet has its own band above the copy */}
+      <div className="pointer-events-none absolute inset-0 hidden lg:block lg:bg-[linear-gradient(90deg,#020306_30%,rgba(2,3,6,0.75)_45%,transparent_62%)]" />
       <Bezel />
 
       {/* top bar */}
-      <header className="pointer-events-auto absolute inset-x-6 top-5 flex items-start justify-between lg:inset-x-12 lg:top-7">
+      <header ref={headerRef} className="pointer-events-auto absolute inset-x-6 top-5 flex items-start justify-between lg:inset-x-12 lg:top-7">
         <Brand>
           <Divider />
           <button onClick={enter} disabled={!globeReady} className="uppercase transition-colors hover:text-accent disabled:opacity-40">
@@ -195,12 +221,9 @@ function LandingView() {
       <div className="pointer-events-auto absolute right-12 top-[15vh] hidden lg:block">
         <LightningHero hot={hot} now={now} onWatch={() => storm && go(storm.place)} />
       </div>
-      <div className="pointer-events-auto absolute left-4 top-[92px] lg:hidden">
-        <LightningHero compact hot={hot} now={now} onWatch={() => storm && go(storm.place)} />
-      </div>
 
       {/* hero column */}
-      <section className="pointer-events-auto absolute inset-x-6 bottom-28 lg:bottom-auto lg:left-12 lg:right-auto lg:top-[13vh] lg:w-[min(780px,52vw)]">
+      <section ref={heroRef} className="pointer-events-auto absolute inset-x-6 bottom-6 lg:bottom-auto lg:left-12 lg:right-auto lg:top-[13vh] lg:w-[min(780px,52vw)]">
         <div className="hidden items-center gap-4 font-mono text-[12px] tracking-[0.16em] text-mute sm:flex">
           <span className="h-px w-8 bg-white/25" />
           <span className="whitespace-pre">{kicker}</span>
@@ -225,7 +248,7 @@ function LandingView() {
           initial={{ opacity: 0, y: 10 }}
           animate={shown ? { opacity: 1, y: 0 } : undefined}
           transition={{ delay: 0.55, duration: 0.7 }}
-          className="mt-3 max-w-[620px] font-display text-[14px] leading-snug sm:mt-5 sm:text-[17px] sm:leading-relaxed text-[#a4acb6] lg:mt-[3vh] lg:text-[clamp(16px,2.4vh,21px)]"
+          className="mt-3 hidden max-w-[620px] font-display text-[14px] [@media(min-height:820px)]:block lg:block leading-snug sm:mt-5 sm:text-[17px] sm:leading-relaxed text-[#a4acb6] lg:mt-[3vh] lg:text-[clamp(16px,2.4vh,21px)]"
         >
           {storm && storm.strikes.count > 0 && (
             <span className="text-ink">
@@ -321,6 +344,16 @@ function LandingView() {
           {(search.note || locNote) && <div className="mt-2 font-mono text-[11px] text-amber-300/90">{search.note ?? locNote}</div>}
         </motion.div>
 
+        {/* phones: the live lightning count, under the search */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={shown ? { opacity: 1, y: 0 } : undefined}
+          transition={{ delay: 0.76, duration: 0.7 }}
+          className="mt-4 lg:hidden"
+        >
+          <LightningHero compact hot={hot} now={now} onWatch={() => storm && go(storm.place)} />
+        </motion.div>
+
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={shown ? { opacity: 1, y: 0 } : undefined}
@@ -333,19 +366,19 @@ function LandingView() {
               <IconCrosshair width={13} height={13} /> OR CLICK THE GLOBE TO DROP A PIN
             </span>
           </div>
-          <div className="mt-3 flex flex-wrap gap-2">
+          <div className="mt-2.5 flex flex-wrap gap-2 sm:mt-3">
             {(resume ? [resume, ...TRY.filter((p) => p.name !== resume.name && !(p.lat === resume.lat && p.lon === resume.lon))] : TRY).map((p, i) => (
               <button
                 key={p.id}
                 onClick={() => (resume && i === 0 ? enter() : go(p))}
-                className="border border-white/20 px-3.5 py-2.5 font-mono text-[12px] uppercase tracking-[0.16em] text-ink transition-colors hover:border-white/50"
+                className="border border-white/20 px-3 py-2 font-mono text-[11px] uppercase tracking-[0.12em] text-ink transition-colors hover:border-white/50 sm:px-3.5 sm:py-2.5 sm:text-[12px] sm:tracking-[0.16em]"
               >
                 {resume && i === 0 ? `↺ ${p.name}` : p.name}
               </button>
             ))}
             <button
               onClick={surprise}
-              className="border border-accent/50 px-3.5 py-2.5 font-mono text-[12px] uppercase tracking-[0.16em] text-accent transition-colors hover:bg-accent/10"
+              className="border border-accent/50 px-3 py-2 font-mono text-[11px] uppercase tracking-[0.12em] text-accent transition-colors hover:bg-accent/10 sm:px-3.5 sm:py-2.5 sm:text-[12px] sm:tracking-[0.16em]"
             >
               Surprise me
             </button>
@@ -357,7 +390,7 @@ function LandingView() {
       </section>
 
       {/* corner readouts */}
-      <footer className="absolute inset-x-6 bottom-5 flex items-end justify-between font-mono text-[11px] tracking-[0.14em] lg:inset-x-12 lg:bottom-7 lg:text-[12px]">
+      <footer className="absolute inset-x-6 bottom-5 hidden items-end justify-between font-mono text-[11px] tracking-[0.14em] lg:inset-x-12 lg:bottom-7 lg:flex lg:text-[12px]">
         <div className="leading-relaxed">
           {globeReady ? (
             <>
