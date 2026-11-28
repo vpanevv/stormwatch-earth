@@ -4,18 +4,22 @@ import { PLACE_TILES } from "@/lib/places/tiles.gen";
 import { fetchJson } from "./http";
 import { reverseGeocode } from "./geocoding";
 import { LIGHTNING_REFRESH_S, strikeSummary, type StrikeSummary } from "./xweather";
+import { cachedGlm } from "./glm";
+import { readShared, writeShared } from "./sharedStore";
 
 /**
  * Where on Earth is lightning striking hardest right now? Xweather's free plan only counts strikes around a point,
- * so we first find the storm, using Open-Meteo's current conditions:
+ * so we first find the storm:
  *
- *   1. a 10° grid over land (≈ 200 points, one multi-location request, refreshed every 2 hours): thunderstorm weather
- *      codes (95–99) first, then convective energy (CAPE) where it is raining;
- *   2. a 1.5° grid inside the stormiest cell, to put the point on the storm itself;
- *   3. Xweather's strike count within 100 km of that point; if a storm turns out quiet, the next one is asked.
+ *   1. NOAA's GOES lightning cameras (lib/server/glm.ts): the busiest 100 km circles of the last 5 minutes over the
+ *      Americas and nearby oceans — real flashes, so these are asked first;
+ *   2. for the rest of the world, Open-Meteo's current conditions: a 10° grid over land (≈ 200 points, refreshed every
+ *      2 hours), thunderstorm codes (95–99) and convective energy where it rains, refined on a 1.5° grid, and the
+ *      known lightning hotspots, ranked by local afternoon;
+ *   3. Xweather's strike count within 100 km of each (MAX_XWEATHER_TRIES in all); the most strikes wins.
  *
- * The answer is cached for HOTSPOT_REFRESH_S, so every visitor sees the same storm and it costs Xweather a request or
- * two per refresh, not per visit.
+ * The answer is kept for HOTSPOT_REFRESH_S in a store every server instance shares (Netlify Blobs), so every visitor
+ * sees the same storm and it costs Xweather a few requests per refresh, not per visit or per cold instance.
  */
 /** One summary call costs Xweather 1 access (measured): 4 tries every 20 min is ≤ ~8,600 a month, worst case. */
 export const HOTSPOT_REFRESH_S = Math.max(LIGHTNING_REFRESH_S, Number(process.env.LIGHTNING_HOTSPOT_REFRESH_SECONDS) || 1200);
@@ -26,6 +30,9 @@ const MAX_XWEATHER_TRIES = 4;
 
 type OMCurrent = { latitude: number; longitude: number; current?: { weather_code?: number; precipitation?: number; cape?: number } };
 type Candidate = { lat: number; lon: number; code: number; cape: number; precip: number; score: number };
+type From = "satellite" | "thunderstorm" | "hotspot";
+/** GOES storms asked per round at most; the other tries go to the rest of the world. */
+const MAX_SATELLITE_TRIES = 2;
 
 export type Hotspot = {
   place: Place;
@@ -33,11 +40,14 @@ export type Hotspot = {
   /** Grid points where Open-Meteo reports a thunderstorm right now, out of `sampled`. */
   thunderstormPoints: number;
   sampled: number;
+  /** When these strikes were counted. */
   fetchedAt: number;
+  /** When the last round ran: later than fetchedAt when a quiet round fell back to the last busy storm. */
+  checkedAt: number;
   /** Every place asked this round and what came back: makes an empty answer explainable. */
-  tried: { lat: number; lon: number; from: "thunderstorm" | "hotspot"; code: number; strikes?: number; error?: string }[];
-  /** Which Open-Meteo requests worked this round. */
-  conditions: { grid: boolean; hotspots: boolean; refine: boolean };
+  tried: { lat: number; lon: number; from: From; code?: number; glmFlashes?: number; strikes?: number; error?: string }[];
+  /** Which storm-finding sources worked this round (NOAA GOES, Open-Meteo). */
+  conditions: { satellite: boolean; grid: boolean; hotspots: boolean; refine: boolean };
 };
 
 let tileBits: Uint8Array | undefined;
@@ -83,22 +93,34 @@ async function refine(c: Candidate): Promise<Candidate> {
 }
 
 let memo: { at: number; value: Promise<Hotspot> } | null = null;
-/** The last answer that had strikes: shown, with its own time, when a whole round comes back quiet. */
-let lastLively: Hotspot | null = null;
+/** A quiet round shows the last busy storm (with the time it was counted) for this long. */
 const LIVELY_MAX_AGE_MS = 60 * 60_000;
+const LATEST_KEY = "hotspot/latest";
+const LIVELY_KEY = "hotspot/lively";
 
 /**
- * findHotspot, shared by concurrent and repeated calls within one server instance for HOTSPOT_REFRESH_S. A quiet
- * round (every storm asked at zero) falls back to the last lively one from the past hour, still labelled with the
- * time it was measured, so the landing always has a real number to show.
+ * The hotspot every visitor sees. Shared by all server instances: the latest round is reused while younger than
+ * HOTSPOT_REFRESH_S (one instance's round serves them all, keeping Xweather's count predictable), and a quiet round
+ * (every storm asked at zero) shows the last busy storm of the past hour instead, still labelled with the time it
+ * was counted, so the landing has a real number to show.
  */
+async function sharedHotspot(): Promise<Hotspot> {
+  const latest = await readShared<Hotspot>(LATEST_KEY);
+  if (latest?.checkedAt && Date.now() - latest.checkedAt < HOTSPOT_REFRESH_S * 1000) return latest;
+  let h = await findHotspot();
+  if (h.strikes.count > 0) await writeShared(LIVELY_KEY, h);
+  else {
+    const lively = await readShared<Hotspot>(LIVELY_KEY);
+    if (lively && Date.now() - lively.fetchedAt < LIVELY_MAX_AGE_MS) h = { ...lively, checkedAt: h.checkedAt, tried: h.tried, conditions: h.conditions };
+  }
+  await writeShared(LATEST_KEY, h);
+  return h;
+}
+
+/** sharedHotspot, also shared by concurrent and repeated calls within one server instance. */
 export function cachedHotspot(): Promise<Hotspot> {
-  if (memo && Date.now() - memo.at < HOTSPOT_REFRESH_S * 1000) return memo.value;
-  const value = findHotspot().then((h) => {
-    if (h.strikes.count > 0) lastLively = h;
-    else if (lastLively && Date.now() - lastLively.fetchedAt < LIVELY_MAX_AGE_MS) return { ...lastLively, tried: h.tried, conditions: h.conditions };
-    return h;
-  });
+  if (memo && Date.now() - memo.at < 60_000) return memo.value;
+  const value = sharedHotspot();
   memo = { at: Date.now(), value };
   value.catch(() => {
     if (memo?.value === value) memo = null;
@@ -178,7 +200,7 @@ export async function findHotspot(): Promise<Hotspot> {
   let sampled = 0;
   let thunderstormPoints = 0;
   let grid: Candidate[] = [];
-  const conditions = { grid: false, hotspots: false, refine: true };
+  const conditions = { satellite: false, grid: false, hotspots: false, refine: true };
   try {
     grid = (await current(LAND_GRID)).sort((a, b) => b.score - a.score);
     sampled = grid.length;
@@ -203,10 +225,31 @@ export async function findHotspot(): Promise<Hotspot> {
     const model = (c.code >= 95 ? 0.6 : c.code >= 80 ? 0.25 : 0) + (Math.min(c.cape, 3000) / 3000) * (c.precip > 0 ? 0.4 : 0.1);
     return sun * 1.2 + model;
   };
-  const pool = [
-    ...grid.filter((c) => c.code >= 95).map((cell) => ({ cell, refine: true, from: "thunderstorm" as const })),
-    ...known.map((cell) => ({ cell, refine: false, from: "hotspot" as const })),
-  ].sort((x, y) => rank(y.cell) - rank(x.cell));
+  // Real storms first: the busiest GOES lightning circles (over land when one is nearly as busy as the sea's best).
+  let satellite: { cell: Candidate; refine: boolean; from: From; glmFlashes?: number }[] = [];
+  try {
+    const glm = await cachedGlm();
+    satellite = glm.clusters
+      .filter((c) => c.flashes >= 5)
+      .sort((a, b) => b.flashes * (hasTowns(b.lat, b.lon) ? 1 : 0.6) - a.flashes * (hasTowns(a.lat, a.lon) ? 1 : 0.6))
+      .slice(0, MAX_SATELLITE_TRIES)
+      .map((c) => ({ cell: { lat: c.lat, lon: c.lon, code: -1, cape: 0, precip: 0, score: 0 }, refine: false, from: "satellite" as const, glmFlashes: c.flashes }));
+    conditions.satellite = true;
+  } catch (e) {
+    console.warn("[lightning/hotspot] GOES lightning unavailable:", safeMessage(e));
+  }
+  // Where the GOES cameras look (well inside their view), they already found the busiest storms: the remaining
+  // tries go to the rest of the world.
+  const seenFromGoes = (c: Candidate) => conditions.satellite && c.lon > -150 && c.lon < -20 && Math.abs(c.lat) < 50;
+  const pool: { cell: Candidate; refine: boolean; from: From; glmFlashes?: number }[] = [
+    ...satellite,
+    ...[
+      ...grid.filter((c) => c.code >= 95).map((cell) => ({ cell, refine: true, from: "thunderstorm" as const })),
+      ...known.map((cell) => ({ cell, refine: false, from: "hotspot" as const })),
+    ]
+      .filter((q) => !seenFromGoes(q.cell))
+      .sort((x, y) => rank(y.cell) - rank(x.cell)),
+  ];
   // Never ask twice about the same storm (Xweather counts within 100 km).
   const queue: typeof pool = [];
   for (const q of pool) {
@@ -217,10 +260,10 @@ export async function findHotspot(): Promise<Hotspot> {
   const tried: Hotspot["tried"] = [];
 
   // 2. Strikes around each, in turn, until one has lightning; a failing candidate never sinks the rest.
-  let best: { point: Candidate; strikes: StrikeSummary; from: "thunderstorm" | "hotspot" } | null = null;
+  let best: { point: Candidate; strikes: StrikeSummary; from: From } | null = null;
   const errors: string[] = [];
   let refineOk = true;
-  for (const { cell, refine: wantRefine, from } of queue) {
+  for (const { cell, refine: wantRefine, from, glmFlashes } of queue) {
     let point = cell;
     if (wantRefine && refineOk) {
       try {
@@ -231,8 +274,8 @@ export async function findHotspot(): Promise<Hotspot> {
         console.warn("[lightning/hotspot] refine unavailable:", safeMessage(e));
       }
     }
-    console.info(`[lightning/hotspot] storm candidate ${point.lat.toFixed(2)},${point.lon.toFixed(2)} code ${point.code} cape ${Math.round(point.cape)} rain ${point.precip}`);
-    const entry: Hotspot["tried"][number] = { lat: +point.lat.toFixed(2), lon: +point.lon.toFixed(2), from, code: point.code };
+    console.info(`[lightning/hotspot] storm candidate (${from}) ${point.lat.toFixed(2)},${point.lon.toFixed(2)} code ${point.code} cape ${Math.round(point.cape)} rain ${point.precip}`);
+    const entry: Hotspot["tried"][number] = { lat: +point.lat.toFixed(2), lon: +point.lon.toFixed(2), from, ...(from === "satellite" ? { glmFlashes } : { code: point.code }) };
     tried.push(entry);
     try {
       const strikes = await strikeSummary(point.lat, point.lon);
@@ -253,7 +296,8 @@ export async function findHotspot(): Promise<Hotspot> {
   const place: Place = named.place
     ? { ...named.place, id: `storm-${point.lat.toFixed(2)},${point.lon.toFixed(2)}`, lat: point.lat, lon: point.lon }
     : { id: `storm-${point.lat.toFixed(2)},${point.lon.toFixed(2)}`, name: coordName(point.lat, point.lon), context: "Open sea", kind: "coords", lat: point.lat, lon: point.lon };
-  return { place, strikes, thunderstormPoints, sampled, fetchedAt: Date.now(), tried, conditions };
+  const now = Date.now();
+  return { place, strikes, thunderstormPoints, sampled, fetchedAt: now, checkedAt: now, tried, conditions };
 }
 
 export { safeMessage };

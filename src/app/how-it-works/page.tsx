@@ -27,6 +27,7 @@ export const metadata: Metadata = {
 
 const SOURCES: [string, string, string][] = [
   ["Lightning strike counts", "Xweather (Vaisala's global lightning network): strikes within 100 km in the last 5 minutes", "Live"],
+  ["Lightning flashes over the Americas", "NOAA's GOES-19 and GOES-18 Geostationary Lightning Mappers: every flash in the last 5 minutes", "Live"],
   ["Current weather, 48-hour and 7-day forecast, sunrise and sunset", "Open-Meteo", "Live"],
   ["Weather radar (rain and snow), last ~2 hours", "RainViewer", "Live"],
   ["Satellite view of a place, HD ground around it", "NASA GIBS (VIIRS, Blue Marble)", "Live"],
@@ -117,9 +118,12 @@ export default function HowItWorks() {
         <H2>Live lightning strikes</H2>
         <p className="mt-4">
           The home page leads with the most active thunderstorm on Earth right now: how many lightning strikes hit within
-          100 km of it in the last five minutes, updated every few minutes. To find it, StormWatch checks where it is late
-          afternoon (when storms peak), where the weather models see thunderstorms, and dozens of the world&apos;s
-          lightning hotspots, then asks Xweather&apos;s detection network which one is striking most. Beside it, an
+          100 km of it in the last five minutes, updated every few minutes. To find it, StormWatch looks where NOAA&apos;s
+          GOES weather satellites, whose lightning cameras watch the Americas and nearby oceans day and night, see the
+          densest flashes right now, and elsewhere where it is late afternoon (when storms peak), where the weather
+          models see thunderstorms, and dozens of the world&apos;s lightning hotspots, then asks Xweather&apos;s
+          detection network which one is striking most. Beside it, every flash those satellites saw in the same five
+          minutes, and an
           estimate of the whole planet&apos;s lightning in the same five minutes: NASA&apos;s satellites recorded about
           44 flashes a second on average, more in the northern summer and in the late-afternoon hours over the
           Americas and Africa. Open any city and

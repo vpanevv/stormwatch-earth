@@ -145,6 +145,25 @@ export type LightningHotspot =
       strikes: LiveStrikes;
       thunderstormPoints: number;
       sampled: number;
+      /** When the strikes were counted; checkedAt is the latest round (later when it fell back to a busy storm). */
+      fetchedAt: number;
+      checkedAt?: number;
+    }
+  | { available: false; reason: string };
+
+/** Lightning flashes seen from orbit by NOAA's GOES Lightning Mappers (GOES-19 and GOES-18): real, not estimated. */
+export type SatelliteLightning =
+  | {
+      available: true;
+      source: "noaa-goes-glm";
+      region: string;
+      flashes: number;
+      windowMin: number;
+      from: number;
+      to: number;
+      satellites: { name: string; flashes: number; error?: string }[];
+      /** The busiest 100 km circles: flashes within 100 km of each point. */
+      clusters: { lat: number; lon: number; flashes: number }[];
       fetchedAt: number;
     }
   | { available: false; reason: string };

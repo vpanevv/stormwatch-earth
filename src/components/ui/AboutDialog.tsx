@@ -175,7 +175,8 @@ function AboutView({ onClose }: { onClose: () => void }) {
                   ["Local map", "OpenStreetMap", "live"],
                   ["Global clouds, temperature and wind fields", "A climate model (OpenWeather tiles with a key)", "model"],
                   ["Snow cover and snowfall away from radar", "The same climate model", "model"],
-                  ["Lightning strike counts: the landing number, each place, each pin", "Xweather (Vaisala's global network), the storm found with Open-Meteo", "live"],
+                  ["Lightning strike counts: the landing number, each place, each pin", "Xweather (Vaisala's global network); the storm found with NOAA's GOES satellites and Open-Meteo", "live"],
+                  ["Lightning flashes over the Americas, the last 5 minutes", "NOAA GOES-19 and GOES-18 Geostationary Lightning Mappers", "live"],
                   ["Lightning strikes worldwide (the landing's \u201cworldwide\u201d number)", "Estimated from NASA's LIS/OTD satellite record: ~44 flashes a second, by season and time of day", "model"],
                   ["Typical lightning for a place (\u201cNASA typical\u201d in its panel)", "NASA LIS/OTD satellite lightning climatology, 1995\u20132014, by month", "model"],
                   ["Lightning flashes drawn on the globe, storm cells", "A simulation of real storm climatology", "sim"],
@@ -212,7 +213,7 @@ function AboutView({ onClose }: { onClose: () => void }) {
               <Facts
                 items={[
                   ["Radar gaps", "Many oceans and countries have no public radar. There the rain layer stays empty in live mode."],
-                  ["Lightning", "Strike counts are live from Xweather, but its free plan only counts the last 5 minutes within 100 km of a point, and there is no free worldwide count. So the landing number is for the most active storm we can find, and the flashes on the globe are still simulated from where storms usually form."],
+                  ["Lightning", "Strike counts are live from Xweather, but its free plan only counts the last 5 minutes within 100 km of a point. So the landing number is for the most active storm we can find, aimed with NOAA's GOES lightning satellites, which see every flash but only over the Americas and nearby oceans. The worldwide total is an estimate, and the flashes on the globe are still simulated from where storms usually form."],
                   ["Global fields", "Without an OpenWeather key, the worldwide clouds, temperature, wind and snow are a model. The numbers for your selected place are real."],
                   ["Resolution", "From orbit the globe is about 5 km per pixel. Near your place it sharpens to about 0.5 km."],
                 ]}

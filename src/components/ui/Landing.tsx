@@ -13,7 +13,7 @@ import { IconCrosshair, IconSearch } from "./icons";
 import { KIND_LABEL } from "./SearchPanel";
 import { Brand, Divider } from "./Brand";
 import { LightningHero } from "./LiveLightning";
-import { useLightningHotspot } from "@/hooks/useDataFeeds";
+import { useLightningHotspot, useSatelliteLightning } from "@/hooks/useDataFeeds";
 
 /**
  * The welcome page: an editorial hero over a slowly turning planet (layout and motion language after
@@ -97,6 +97,15 @@ function LandingView() {
   const radarIdx = useAppStore((s) => s.radar.data);
   const hot = useLightningHotspot();
   const storm = hot?.available ? hot : null;
+  const sat = useSatelliteLightning();
+  const satLive = sat?.available && sat.flashes > 0 ? sat : null;
+  /** The busiest storm NOAA's satellites see right now, as a place to fly to. */
+  const watchSat = () => {
+    const c = satLive?.clusters[0];
+    if (!c) return;
+    const ns = `${Math.abs(c.lat).toFixed(1)}°${c.lat >= 0 ? "N" : "S"} ${Math.abs(c.lon).toFixed(1)}°${c.lon >= 0 ? "E" : "W"}`;
+    go({ id: `glm-${c.lat},${c.lon}`, name: ns, context: "Busiest storm seen by NOAA's satellites", kind: "coords", lat: c.lat, lon: c.lon });
+  };
   const resume = useAppStore((s) => s.selection);
   const geolocating = useAppStore((s) => s.geolocating);
   const now = useNow();
@@ -219,7 +228,7 @@ function LandingView() {
 
       {/* the live lightning count: the page's headline number */}
       <div className="pointer-events-auto absolute right-12 top-[15vh] hidden lg:block">
-        <LightningHero hot={hot} now={now} onWatch={() => storm && go(storm.place)} />
+        <LightningHero hot={hot} sat={sat} now={now} onWatch={() => storm && go(storm.place)} onWatchSat={watchSat} />
       </div>
 
       {/* hero column */}
@@ -250,12 +259,17 @@ function LandingView() {
           transition={{ delay: 0.55, duration: 0.7 }}
           className="mt-3 hidden max-w-[620px] font-display text-[14px] [@media(min-height:820px)]:block lg:block leading-snug sm:mt-5 sm:text-[17px] sm:leading-relaxed text-[#a4acb6] lg:mt-[3vh] lg:text-[clamp(16px,2.4vh,21px)]"
         >
-          {storm && storm.strikes.count > 0 && (
+          {storm && storm.strikes.count > 0 ? (
             <span className="text-ink">
               Right now, lightning has struck <span className="font-semibold text-accent">{fmtInt(storm.strikes.count)}&nbsp;times</span> in{" "}
               {storm.windowMin}&nbsp;minutes near {storm.place.name}.{" "}
             </span>
-          )}
+          ) : satLive ? (
+            <span className="text-ink">
+              In the last {satLive.windowMin}&nbsp;minutes, NOAA&apos;s satellites saw{" "}
+              <span className="font-semibold text-accent">{fmtInt(satLive.flashes)}&nbsp;lightning flashes</span> over the Americas.{" "}
+            </span>
+          ) : null}
           Enter any place on Earth. See its clouds, radar, snow and lightning on a live planet, and the forecast for the
           next&nbsp;7&nbsp;days.
         </motion.p>
@@ -351,7 +365,7 @@ function LandingView() {
           transition={{ delay: 0.76, duration: 0.7 }}
           className="mt-4 lg:hidden"
         >
-          <LightningHero compact hot={hot} now={now} onWatch={() => storm && go(storm.place)} />
+          <LightningHero compact hot={hot} sat={sat} now={now} onWatch={() => storm && go(storm.place)} onWatchSat={watchSat} />
         </motion.div>
 
         <motion.div

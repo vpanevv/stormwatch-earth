@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { XWEATHER_ON, LIGHTNING_WINDOW_MIN } from "@/lib/server/xweather";
-import { HOTSPOT_REFRESH_S, cachedHotspot, safeMessage } from "@/lib/server/stormHotspot";
+import { cachedHotspot, safeMessage } from "@/lib/server/stormHotspot";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +11,8 @@ export async function GET() {
     const hotspot = await cachedHotspot();
     return NextResponse.json(
       { available: true, source: "xweather", windowMin: LIGHTNING_WINDOW_MIN, ...hotspot },
-      { headers: { "Cache-Control": `public, max-age=60, s-maxage=${HOTSPOT_REFRESH_S}, stale-while-revalidate=${HOTSPOT_REFRESH_S}` } },
+      // The shared store keeps Xweather to one round per HOTSPOT_REFRESH_S; the CDN only needs to spare the function.
+      { headers: { "Cache-Control": "public, max-age=60, s-maxage=300, stale-while-revalidate=300" } },
     );
   } catch (e) {
     console.error("[lightning/hotspot]", safeMessage(e));

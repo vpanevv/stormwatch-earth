@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { AppConfig, LightningHotspot, LiveLightning, RadarIndex, WeatherBundle } from "@/types/weather";
+import type { AppConfig, LightningHotspot, LiveLightning, RadarIndex, WeatherBundle, SatelliteLightning } from "@/types/weather";
 import { clock, LIGHTNING_WINDOW_MS, useAppStore } from "@/store/useAppStore";
 import { radar } from "@/lib/radar/manager";
 import { MockLightningSource, type LightningSource } from "@/lib/lightning/source";
@@ -127,6 +127,28 @@ export function useLightningHotspot() {
     };
   }, []);
   return hot;
+}
+
+/** Lightning flashes NOAA's GOES satellites saw over the Americas in the last 5 minutes (landing page). */
+export function useSatelliteLightning() {
+  const [sat, setSat] = useState<SatelliteLightning | null>(null);
+  useEffect(() => {
+    const ctrl = new AbortController();
+    const load = () =>
+      fetch("/api/lightning/satellite", { signal: ctrl.signal })
+        .then((r) => r.json() as Promise<SatelliteLightning>)
+        .then(setSat)
+        .catch(() => {
+          if (!ctrl.signal.aborted) setSat({ available: false, reason: "unreachable" });
+        });
+    load();
+    const id = setInterval(load, 60_000);
+    return () => {
+      ctrl.abort();
+      clearInterval(id);
+    };
+  }, []);
+  return sat;
 }
 
 /** Runs the lightning source and publishes strike stats + storm cells at a low rate. */
