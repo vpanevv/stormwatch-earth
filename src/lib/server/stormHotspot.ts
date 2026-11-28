@@ -20,7 +20,8 @@ import { LIGHTNING_REFRESH_S, strikeSummary, type StrikeSummary } from "./xweath
 export const HOTSPOT_REFRESH_S = Math.max(LIGHTNING_REFRESH_S, Number(process.env.LIGHTNING_HOTSPOT_REFRESH_SECONDS) || 900);
 /** Open-Meteo counts each location as a call (10,000 a day free): ~250 points every 2 h stays far inside it. */
 const GRID_REFRESH_S = 7200;
-const MAX_XWEATHER_TRIES = 2;
+/** Xweather requests per refresh at most (the first storm with strikes ends the search). */
+const MAX_XWEATHER_TRIES = 3;
 
 type OMCurrent = { latitude: number; longitude: number; current?: { weather_code?: number; precipitation?: number; cape?: number } };
 type Candidate = { lat: number; lon: number; code: number; cape: number; precip: number; score: number };
@@ -134,34 +135,45 @@ const fromAfternoon = (lon: number, now = Date.now()) => {
 const safeMessage = (e: unknown) => (e instanceof Error ? e.message : String(e)).replace(/client_(id|secret)=[^&\s]+/g, "client_$1=…").slice(0, 160);
 
 export async function findHotspot(): Promise<Hotspot> {
-  // 1. Candidates: the global land grid; if Open-Meteo can't answer that (it counts every location as a call), the
-  //    known hotspots ranked by their own conditions; if even that fails, by local afternoon.
-  let candidates: Candidate[];
+  // 1. Where is it storming? Grid cells with a thunderstorm code (refined onto the storm when Open-Meteo allows),
+  //    then the known hotspots, ranked by their own conditions (one small request) or by local afternoon.
   let sampled = 0;
   let thunderstormPoints = 0;
-  let refineOk = true;
+  let grid: Candidate[] = [];
   try {
-    candidates = (await current(LAND_GRID)).sort((a, b) => b.score - a.score);
-    sampled = candidates.length;
-    thunderstormPoints = candidates.filter((c) => c.code >= 95).length;
+    grid = (await current(LAND_GRID)).sort((a, b) => b.score - a.score);
+    sampled = grid.length;
+    thunderstormPoints = grid.filter((c) => c.code >= 95).length;
   } catch (e) {
-    console.warn("[lightning/hotspot] grid unavailable, using known hotspots:", safeMessage(e));
-    refineOk = false;
-    try {
-      candidates = (await current(HOTSPOTS)).sort((a, b) => b.score - a.score || fromAfternoon(a.lon) - fromAfternoon(b.lon));
-      sampled = candidates.length;
-      thunderstormPoints = candidates.filter((c) => c.code >= 95).length;
-    } catch (e2) {
-      console.warn("[lightning/hotspot] hotspot conditions unavailable, ranking by local time:", safeMessage(e2));
-      candidates = HOTSPOTS.map((h) => ({ ...h, code: 0, cape: 0, precip: 0, score: 0 })).sort((a, b) => fromAfternoon(a.lon) - fromAfternoon(b.lon));
-    }
+    console.warn("[lightning/hotspot] grid unavailable:", safeMessage(e));
   }
+  let known: Candidate[];
+  try {
+    known = (await current(HOTSPOTS)).sort((a, b) => b.score - a.score || fromAfternoon(a.lon) - fromAfternoon(b.lon));
+  } catch (e) {
+    console.warn("[lightning/hotspot] hotspot conditions unavailable, ranking by local time:", safeMessage(e));
+    known = HOTSPOTS.map((h) => ({ ...h, code: 0, cape: 0, precip: 0, score: 0 })).sort((a, b) => fromAfternoon(a.lon) - fromAfternoon(b.lon));
+  }
+  const stormy = grid.filter((c) => c.code >= 95).slice(0, 2);
+  const queue: { cell: Candidate; refine: boolean }[] = [
+    ...stormy.map((cell) => ({ cell, refine: true })),
+    ...known.slice(0, MAX_XWEATHER_TRIES).map((cell) => ({ cell, refine: false })),
+  ].slice(0, MAX_XWEATHER_TRIES);
 
-  // 2. Strikes around the best candidates; one failing candidate never sinks the rest.
+  // 2. Strikes around each, in turn, until one has lightning; a failing candidate never sinks the rest.
   let best: { point: Candidate; strikes: StrikeSummary } | null = null;
   const errors: string[] = [];
-  for (const cell of candidates.slice(0, MAX_XWEATHER_TRIES)) {
-    const point = refineOk ? await refine(cell).catch(() => cell) : cell;
+  let refineOk = true;
+  for (const { cell, refine: wantRefine } of queue) {
+    let point = cell;
+    if (wantRefine && refineOk) {
+      try {
+        point = await refine(cell);
+      } catch (e) {
+        refineOk = false; // Open-Meteo is refusing big requests: don't ask again this round
+        console.warn("[lightning/hotspot] refine unavailable:", safeMessage(e));
+      }
+    }
     console.info(`[lightning/hotspot] storm candidate ${point.lat.toFixed(2)},${point.lon.toFixed(2)} code ${point.code} cape ${Math.round(point.cape)} rain ${point.precip}`);
     try {
       const strikes = await strikeSummary(point.lat, point.lon);

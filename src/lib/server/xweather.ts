@@ -31,6 +31,8 @@ export type StrikeSummary = {
   from: number;
   to: number;
   radiusKm: number;
+  /** Xweather accesses this request cost (X-Cost-Tokens), when it reported one; for watching the monthly budget. */
+  costTokens?: number;
 };
 
 type SummaryResponse = {
@@ -62,7 +64,8 @@ export async function strikeSummary(lat: number, lon: number, radiusKm = LIGHTNI
   if (!res.ok) throw new LightningUnavailable(`Xweather responded ${res.status}`);
   const d = (await res.json()) as SummaryResponse;
   const now = Date.now();
-  const empty: StrikeSummary = { count: 0, cg: 0, ic: 0, from: now - LIGHTNING_WINDOW_MIN * 60_000, to: now, radiusKm };
+  const costTokens = cost ? Number(cost) : undefined;
+  const empty: StrikeSummary = { count: 0, cg: 0, ic: 0, from: now - LIGHTNING_WINDOW_MIN * 60_000, to: now, radiusKm, costTokens };
   // "warn_no_data" is Xweather's way of saying nothing was found: zero strikes, not a failure.
   if (d.error?.code === "warn_no_data") return empty;
   if (!d.success) throw new LightningUnavailable(`Xweather ${d.error?.code ?? "error"}: ${d.error?.description ?? "no description"}`);
@@ -75,5 +78,6 @@ export async function strikeSummary(lat: number, lon: number, radiusKm = LIGHTNI
     from: s.range?.fromTimestamp ? s.range.fromTimestamp * 1000 : empty.from,
     to: s.range?.toTimestamp ? s.range.toTimestamp * 1000 : empty.to,
     radiusKm,
+    costTokens,
   };
 }
