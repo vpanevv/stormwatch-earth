@@ -5,7 +5,7 @@ import { fetchJson } from "./http";
 import { reverseGeocode } from "./geocoding";
 import { LIGHTNING_REFRESH_S, strikeSummary, type StrikeSummary } from "./xweather";
 import { cachedGlm } from "./glm";
-import { readShared, writeShared } from "./sharedStore";
+import { readShared, writeShared, withTimeout } from "./sharedStore";
 
 /**
  * Where on Earth is lightning striking hardest right now? Xweather's free plan only counts strikes around a point,
@@ -46,6 +46,8 @@ export type Hotspot = {
   checkedAt: number;
   /** Every place asked this round and what came back: makes an empty answer explainable. */
   tried: { lat: number; lon: number; from: From; code?: number; glmFlashes?: number; strikes?: number; error?: string }[];
+  /** Milliseconds each step of the round took (satellite, grid, hotspots, xweather, name). */
+  timings?: Record<string, number>;
   /** Which storm-finding sources worked this round (NOAA GOES, Open-Meteo). */
   conditions: { satellite: boolean; grid: boolean; hotspots: boolean; refine: boolean };
 };
@@ -69,14 +71,14 @@ const LAND_GRID: { lat: number; lon: number }[] = (() => {
 const score = (code: number, cape: number, precip: number) =>
   (code >= 95 ? 1e6 : 0) + (precip > 0 ? cape * (0.5 + Math.min(precip, 20)) : cape * 0.02);
 
-async function current(points: { lat: number; lon: number }[]): Promise<Candidate[]> {
+async function current(points: { lat: number; lon: number }[], timeoutMs = 6000): Promise<Candidate[]> {
   const q = new URLSearchParams({
     latitude: points.map((p) => p.lat.toFixed(2)).join(","),
     longitude: points.map((p) => p.lon.toFixed(2)).join(","),
     current: "weather_code,precipitation,cape",
     timezone: "GMT",
   });
-  const d = await fetchJson<OMCurrent | OMCurrent[]>(`https://api.open-meteo.com/v1/forecast?${q}`, { revalidate: GRID_REFRESH_S, timeoutMs: 12_000 });
+  const d = await fetchJson<OMCurrent | OMCurrent[]>(`https://api.open-meteo.com/v1/forecast?${q}`, { revalidate: GRID_REFRESH_S, timeoutMs });
   const list = Array.isArray(d) ? d : [d];
   return list.map((r, i) => {
     const code = r.current?.weather_code ?? 0, cape = r.current?.cape ?? 0, precip = r.current?.precipitation ?? 0;
@@ -96,6 +98,8 @@ let memo: { at: number; value: Promise<Hotspot> } | null = null;
 /** A quiet round shows the last busy storm (with the time it was counted) for this long. */
 const LIVELY_MAX_AGE_MS = 60 * 60_000;
 const LATEST_KEY = "hotspot/latest";
+/** One round's time budget; the platform's limit is ~26 s. */
+const ROUND_BUDGET_MS = 18_000;
 const LIVELY_KEY = "hotspot/lively";
 
 /**
@@ -107,7 +111,17 @@ const LIVELY_KEY = "hotspot/lively";
 async function sharedHotspot(): Promise<Hotspot> {
   const latest = await readShared<Hotspot>(LATEST_KEY);
   if (latest?.checkedAt && Date.now() - latest.checkedAt < HOTSPOT_REFRESH_S * 1000) return latest;
-  let h = await findHotspot();
+  let h: Hotspot;
+  try {
+    // Netlify ends a function after ~26 s: a round that runs long gives way to the last answer we have.
+    h = await withTimeout(findHotspot(), ROUND_BUDGET_MS);
+  } catch (e) {
+    if (latest) {
+      console.warn("[lightning/hotspot] round failed, keeping the last answer:", safeMessage(e));
+      return latest;
+    }
+    throw e;
+  }
   if (h.strikes.count > 0) await writeShared(LIVELY_KEY, h);
   else {
     const lively = await readShared<Hotspot>(LIVELY_KEY);
@@ -195,49 +209,60 @@ const fromAfternoon = (lon: number, now = Date.now()) => {
 const safeMessage = (e: unknown) => (e instanceof Error ? e.message : String(e)).replace(/client_(id|secret)=[^&\s]+/g, "client_$1=…").slice(0, 160);
 
 export async function findHotspot(): Promise<Hotspot> {
-  // 1. Where is it storming? Grid cells with a thunderstorm code (refined onto the storm when Open-Meteo allows),
-  //    then the known hotspots, ranked by their own conditions (one small request) or by local afternoon.
+  // Everything that can run at once does: a serverless function has ~25 s, and each source can be slow on a cold
+  // start (empty fetch cache). `timings` says where a round spent its time.
+  const timings: Record<string, number> = {};
+  const timed = async <T>(name: string, p: Promise<T>): Promise<T> => {
+    const t0 = Date.now();
+    try {
+      return await p;
+    } finally {
+      timings[name] = Date.now() - t0;
+    }
+  };
+  const conditions = { satellite: false, grid: false, hotspots: false, refine: true };
+
+  // 1. Where is it storming? NOAA's lightning satellites, Open-Meteo's land grid and the known hotspots, together.
+  const [glmR, gridR, knownR] = await Promise.allSettled([
+    timed("satellite", withTimeout(cachedGlm(), 9000)),
+    timed("grid", current(LAND_GRID, 8000)),
+    timed("hotspots", current(HOTSPOTS, 8000)),
+  ]);
+  let grid: Candidate[] = [];
   let sampled = 0;
   let thunderstormPoints = 0;
-  let grid: Candidate[] = [];
-  const conditions = { satellite: false, grid: false, hotspots: false, refine: true };
-  try {
-    grid = (await current(LAND_GRID)).sort((a, b) => b.score - a.score);
+  if (gridR.status === "fulfilled") {
+    grid = gridR.value.sort((a, b) => b.score - a.score);
     sampled = grid.length;
     thunderstormPoints = grid.filter((c) => c.code >= 95).length;
     conditions.grid = true;
-  } catch (e) {
-    console.warn("[lightning/hotspot] grid unavailable:", safeMessage(e));
-  }
+  } else console.warn("[lightning/hotspot] grid unavailable:", safeMessage(gridR.reason));
   let known: Candidate[];
-  try {
-    known = (await current(HOTSPOTS)).sort((a, b) => b.score - a.score || fromAfternoon(a.lon) - fromAfternoon(b.lon));
+  if (knownR.status === "fulfilled") {
+    known = knownR.value.sort((a, b) => b.score - a.score || fromAfternoon(a.lon) - fromAfternoon(b.lon));
     conditions.hotspots = true;
-  } catch (e) {
-    console.warn("[lightning/hotspot] hotspot conditions unavailable, ranking by local time:", safeMessage(e));
+  } else {
+    console.warn("[lightning/hotspot] hotspot conditions unavailable, ranking by local time:", safeMessage(knownR.reason));
     known = HOTSPOTS.map((h) => ({ ...h, code: 0, cape: 0, precip: 0, score: 0 })).sort((a, b) => fromAfternoon(a.lon) - fromAfternoon(b.lon));
   }
-  // Rank everything together. Real lightning follows the sun: storms peak in the late afternoon, so local time
-  // counts most, and the model's thunderstorm code, convective energy and rain add to it. (Ranking by the code alone
-  // picked night-time places: at 09:24 UTC it tried Maracaibo at 04:36 and the Amazon at 05:24, all quiet.)
-  const rank = (c: Candidate) => {
-    const sun = Math.max(0, 1 - fromAfternoon(c.lon) / 6); // 1 at 16:00 local, 0 beyond ±6 h
-    const model = (c.code >= 95 ? 0.6 : c.code >= 80 ? 0.25 : 0) + (Math.min(c.cape, 3000) / 3000) * (c.precip > 0 ? 0.4 : 0.1);
-    return sun * 1.2 + model;
-  };
   // Real storms first: the busiest GOES lightning circles (over land when one is nearly as busy as the sea's best).
   let satellite: { cell: Candidate; refine: boolean; from: From; glmFlashes?: number }[] = [];
-  try {
-    const glm = await cachedGlm();
-    satellite = glm.clusters
+  if (glmR.status === "fulfilled") {
+    satellite = glmR.value.clusters
       .filter((c) => c.flashes >= 5)
       .sort((a, b) => b.flashes * (hasTowns(b.lat, b.lon) ? 1 : 0.6) - a.flashes * (hasTowns(a.lat, a.lon) ? 1 : 0.6))
       .slice(0, MAX_SATELLITE_TRIES)
       .map((c) => ({ cell: { lat: c.lat, lon: c.lon, code: -1, cape: 0, precip: 0, score: 0 }, refine: false, from: "satellite" as const, glmFlashes: c.flashes }));
     conditions.satellite = true;
-  } catch (e) {
-    console.warn("[lightning/hotspot] GOES lightning unavailable:", safeMessage(e));
-  }
+  } else console.warn("[lightning/hotspot] GOES lightning unavailable:", safeMessage(glmR.reason));
+
+  // Real lightning follows the sun: storms peak in the late afternoon, so local time counts most, and the model's
+  // thunderstorm code, convective energy and rain add to it. (Ranking by the code alone picked night-time places.)
+  const rank = (c: Candidate) => {
+    const sun = Math.max(0, 1 - fromAfternoon(c.lon) / 6); // 1 at 16:00 local, 0 beyond ±6 h
+    const model = (c.code >= 95 ? 0.6 : c.code >= 80 ? 0.25 : 0) + (Math.min(c.cape, 3000) / 3000) * (c.precip > 0 ? 0.4 : 0.1);
+    return sun * 1.2 + model;
+  };
   // Where the GOES cameras look (well inside their view), they already found the busiest storms: the remaining
   // tries go to the rest of the world.
   const seenFromGoes = (c: Candidate) => conditions.satellite && c.lon > -150 && c.lon < -20 && Math.abs(c.lat) < 50;
@@ -257,47 +282,50 @@ export async function findHotspot(): Promise<Hotspot> {
     queue.push(q);
     if (queue.length >= MAX_XWEATHER_TRIES) break;
   }
-  const tried: Hotspot["tried"] = [];
 
-  // 2. Strikes around each, in turn, until one has lightning; a failing candidate never sinks the rest.
+  // 2. Strikes around each, all at once; a failing candidate never sinks the rest.
+  const results = await timed(
+    "xweather",
+    Promise.all(
+      queue.map(async ({ cell, refine: wantRefine, from, glmFlashes }) => {
+        let point = cell;
+        if (wantRefine) {
+          try {
+            point = await refine(cell);
+          } catch (e) {
+            conditions.refine = false;
+            console.warn("[lightning/hotspot] refine unavailable:", safeMessage(e));
+          }
+        }
+        const entry: Hotspot["tried"][number] = { lat: +point.lat.toFixed(2), lon: +point.lon.toFixed(2), from, ...(from === "satellite" ? { glmFlashes } : { code: point.code }) };
+        try {
+          const strikes = await strikeSummary(point.lat, point.lon);
+          entry.strikes = strikes.count;
+          return { entry, point, strikes, from };
+        } catch (e) {
+          entry.error = safeMessage(e);
+          return { entry, point, strikes: null, from };
+        }
+      }),
+    ),
+  );
+  const tried = results.map((r) => r.entry);
+  // The storm with the most strikes wins; among quiet answers, a named hotspot over a grid cell at sea.
   let best: { point: Candidate; strikes: StrikeSummary; from: From } | null = null;
-  const errors: string[] = [];
-  let refineOk = true;
-  for (const { cell, refine: wantRefine, from, glmFlashes } of queue) {
-    let point = cell;
-    if (wantRefine && refineOk) {
-      try {
-        point = await refine(cell);
-      } catch (e) {
-        refineOk = false; // Open-Meteo is refusing big requests: don't ask again this round
-        conditions.refine = false;
-        console.warn("[lightning/hotspot] refine unavailable:", safeMessage(e));
-      }
-    }
-    console.info(`[lightning/hotspot] storm candidate (${from}) ${point.lat.toFixed(2)},${point.lon.toFixed(2)} code ${point.code} cape ${Math.round(point.cape)} rain ${point.precip}`);
-    const entry: Hotspot["tried"][number] = { lat: +point.lat.toFixed(2), lon: +point.lon.toFixed(2), from, ...(from === "satellite" ? { glmFlashes } : { code: point.code }) };
-    tried.push(entry);
-    try {
-      const strikes = await strikeSummary(point.lat, point.lon);
-      entry.strikes = strikes.count;
-      // With every answer at zero, keep the best-ranked hotspot (a named place), not a grid cell over the sea.
-      // The storm with the most strikes wins; among quiet answers, a named hotspot over a grid cell at sea.
-      if (!best || strikes.count > best.strikes.count || (strikes.count === 0 && best.strikes.count === 0 && from === "hotspot" && best.from !== "hotspot"))
-        best = { point, strikes, from };
-    } catch (e) {
-      entry.error = safeMessage(e);
-      errors.push(entry.error);
-    }
+  for (const r of results) {
+    if (!r.strikes) continue;
+    if (!best || r.strikes.count > best.strikes.count || (r.strikes.count === 0 && best.strikes.count === 0 && r.from === "hotspot" && best.from !== "hotspot"))
+      best = { point: r.point, strikes: r.strikes, from: r.from };
   }
-  if (!best) throw new Error(`no lightning answer: ${errors.join("; ") || "no candidates"}`);
+  if (!best) throw new Error(`no lightning answer: ${tried.map((t) => t.error).filter(Boolean).join("; ") || "no candidates"}`);
 
   const { point, strikes } = best;
-  const named = await reverseGeocode(point.lat, point.lon).catch(() => ({ place: null }));
+  const named = await timed("name", withTimeout(reverseGeocode(point.lat, point.lon), 4000).catch(() => ({ place: null })));
   const place: Place = named.place
     ? { ...named.place, id: `storm-${point.lat.toFixed(2)},${point.lon.toFixed(2)}`, lat: point.lat, lon: point.lon }
     : { id: `storm-${point.lat.toFixed(2)},${point.lon.toFixed(2)}`, name: coordName(point.lat, point.lon), context: "Open sea", kind: "coords", lat: point.lat, lon: point.lon };
   const now = Date.now();
-  return { place, strikes, thunderstormPoints, sampled, fetchedAt: now, checkedAt: now, tried, conditions };
+  return { place, strikes, thunderstormPoints, sampled, fetchedAt: now, checkedAt: now, tried, conditions, timings };
 }
 
 export { safeMessage };
