@@ -69,7 +69,7 @@ never confused.
 | Radar | Rain and snow echoes, the last ~2 hours (RainViewer) | Precipitation further back than the radar archive |
 | Clouds | Cloud cover at the selected place | The global cloud field, unless an OpenWeather key is set |
 | Snow | Snowfall and snow depth at the place, radar snow | Snow cover and snowfall elsewhere, from a climate model |
-| Lightning | Strike counts within 100 km, the last 5 minutes (Xweather); the storm is found with Open-Meteo | The flashes drawn on the globe and the storm cells |
+| Lightning | Strike counts within 100 km, the last 5 minutes (Xweather); the storm is found with Open-Meteo | The worldwide total (an estimate from NASA's LIS/OTD record, ~44 flashes/s by season and hour), the flashes drawn on the globe, the storm cells |
 
 **What it can't see.** Radar only exists where countries run it and share it, so oceans and much of Africa and Asia
 have none. The forecast is a model run, not an observation. The lightning is a stand-in drawn from where storms

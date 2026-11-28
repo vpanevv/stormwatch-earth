@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { animate, motion } from "framer-motion";
 import type { LightningHotspot, LiveLightning } from "@/types/weather";
 import { fmtInt } from "@/lib/format";
+import { globalFlashRate, globalStrikeEstimate } from "@/lib/lightning/globalEstimate";
 
 /** A number that counts to its new value when it changes, and flashes, so a live update reads as one. */
 export function TickingNumber({ value, className = "" }: { value: number; className?: string }) {
@@ -46,18 +47,22 @@ const Bolt = ({ className = "" }: { className?: string }) => (
 export function LightningHero({ hot, now, onWatch, compact = false }: { hot: LightningHotspot | null; now: number; onWatch: () => void; compact?: boolean }) {
   if (!hot) {
     return compact ? null : (
-      <div className="text-right font-mono text-[12px] uppercase tracking-[0.16em] text-mute">
+      <div className="flex flex-col items-end text-right font-mono text-[12px] uppercase tracking-[0.16em] text-mute">
         <span className="animate-pulse">Finding the most active storm…</span>
+        <WorldEstimate now={now} />
       </div>
     );
   }
   if (!hot.available) {
-    return compact ? null : (
-      <div className="text-right font-mono text-[11px] uppercase tracking-[0.16em] text-faint">
+    return compact ? (
+      <WorldEstimate now={now} compact />
+    ) : (
+      <div className="flex flex-col items-end text-right font-mono text-[11px] uppercase tracking-[0.16em] text-faint">
         Live lightning offline
         {process.env.NODE_ENV === "development" && hot.reason === "not-configured" && (
           <div className="mt-1 normal-case tracking-normal">Set XWEATHER_CLIENT_ID and XWEATHER_CLIENT_SECRET</div>
         )}
+        <WorldEstimate now={now} />
       </div>
     );
   }
@@ -75,6 +80,9 @@ export function LightningHero({ hot, now, onWatch, compact = false }: { hot: Lig
           <span className="mt-1 block font-mono text-[10px] uppercase tracking-[0.14em] text-mute">
             <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-emerald-400 live-dot align-middle" />
             strikes · last {hot.windowMin} min · near {hot.place.name}
+          </span>
+          <span className="mt-0.5 block font-mono text-[10px] uppercase tracking-[0.14em] text-ink/80">
+            ≈ {fmtInt(globalStrikeEstimate(now))} worldwide · estimated
           </span>
         </span>
       </button>
@@ -113,7 +121,40 @@ export function LightningHero({ hot, now, onWatch, compact = false }: { hot: Lig
           Watch this storm →
         </button>
       </div>
+      <WorldEstimate now={now} />
     </motion.div>
+  );
+}
+
+/**
+ * The whole planet's lightning in the same window, estimated from NASA's satellite record (lib/lightning/
+ * globalEstimate.ts). Always labelled as an estimate: unlike the storm count above, nothing observes it live.
+ */
+function WorldEstimate({ now, compact = false }: { now: number; compact?: boolean }) {
+  const est = globalStrikeEstimate(now);
+  const rate = Math.round(globalFlashRate(now));
+  if (compact) {
+    return (
+      <div className="bg-[#020306]/75 px-3 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-ink/85 backdrop-blur-sm">
+        ⚡ ≈ {fmtInt(est)} strikes worldwide · last 5 min · estimated
+      </div>
+    );
+  }
+  return (
+    <div
+      className="mt-4 w-[400px] max-w-[40vw] border-t border-white/15 pt-3 text-right normal-case tracking-normal"
+      title={`Estimated from NASA's LIS/OTD satellite lightning record: about ${rate} flashes a second at this time of day and year.`}
+    >
+      <div className="flex items-baseline justify-end gap-2.5">
+        <span className="whitespace-nowrap font-display text-[clamp(26px,4vh,36px)] font-semibold leading-none text-[#ece8e0] [font-stretch:80%]">
+          ≈ <TickingNumber value={est} />
+        </span>
+        <span className="whitespace-nowrap font-mono text-[11px] uppercase tracking-[0.14em] text-ink/90">strikes worldwide · last 5 min</span>
+      </div>
+      <div className="mt-1.5 whitespace-nowrap font-mono text-[10px] uppercase tracking-[0.12em] text-mute">
+        Estimated · NASA satellite average · ≈ {rate} per second
+      </div>
+    </div>
   );
 }
 

@@ -32,6 +32,7 @@ const SOURCES: [string, string, string][] = [
   ["Satellite view of a place, HD ground around it", "NASA GIBS (VIIRS, Blue Marble)", "Live"],
   ["Place search and names", "Open-Meteo geocoder, Photon, OpenStreetMap Nominatim, GeoNames", "Live"],
   ["Global cloud, temperature and wind fields; snow cover away from radar", "A climate model in the app", "Modelled"],
+  ["Lightning strikes worldwide (the home page's estimate)", "NASA's LIS/OTD satellite lightning record: ~44 flashes a second, by season and time of day", "Estimated"],
   ["Lightning flashes drawn on the globe, storm cells", "A simulation of where storms usually form", "Simulated"],
 ];
 
@@ -117,7 +118,10 @@ export default function HowItWorks() {
           The home page leads with the most active thunderstorm on Earth right now: how many lightning strikes hit within
           100 km of it in the last five minutes, updated every few minutes. To find it, StormWatch checks where it is late
           afternoon (when storms peak), where the weather models see thunderstorms, and dozens of the world&apos;s
-          lightning hotspots, then asks Xweather&apos;s detection network which one is striking most. Open any city and
+          lightning hotspots, then asks Xweather&apos;s detection network which one is striking most. Beside it, an
+          estimate of the whole planet&apos;s lightning in the same five minutes: NASA&apos;s satellites recorded about
+          44 flashes a second on average, more in the northern summer and in the late-afternoon hours over the
+          Americas and Africa. Open any city and
           its own strike count appears next to the forecast, and the forecast panel flashes when lightning is hitting
           nearby.
         </p>
