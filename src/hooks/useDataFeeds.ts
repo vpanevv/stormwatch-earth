@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import type { AppConfig, RadarIndex, WeatherBundle } from "@/types/weather";
+import { useEffect, useRef, useState } from "react";
+import type { AppConfig, LightningHotspot, LiveLightning, RadarIndex, WeatherBundle } from "@/types/weather";
 import { clock, LIGHTNING_WINDOW_MS, useAppStore } from "@/store/useAppStore";
 import { radar } from "@/lib/radar/manager";
 import { MockLightningSource, type LightningSource } from "@/lib/lightning/source";
@@ -72,6 +72,61 @@ export function useWeatherSync() {
       clearInterval(id);
     };
   }, [lat, lon, setWeather]);
+}
+
+/**
+ * Live strikes around the selected place (Xweather, via /api/lightning: within 100 km, the last 5 minutes).
+ * Polled every minute; the server and CDN cache the answer, so polling costs Xweather nothing extra.
+ */
+export function useLiveLightningSync() {
+  const selection = useAppStore((s) => s.selection);
+  const setLive = useAppStore((s) => s.setLiveLightning);
+  const lat = selection?.lat;
+  const lon = selection?.lon;
+  useEffect(() => {
+    setLive(null);
+    if (lat === undefined || lon === undefined) return;
+    const ctrl = new AbortController();
+    const load = () =>
+      fetchLiveLightning(lat, lon, ctrl.signal)
+        .then(setLive)
+        .catch(() => {
+          if (!ctrl.signal.aborted) setLive({ available: false, reason: "unreachable" });
+        });
+    load();
+    const id = setInterval(load, 60_000);
+    return () => {
+      ctrl.abort();
+      clearInterval(id);
+    };
+  }, [lat, lon, setLive]);
+}
+
+/** Same rounding as the server, so nearby places share one cached answer. */
+export function fetchLiveLightning(lat: number, lon: number, signal?: AbortSignal): Promise<LiveLightning> {
+  return fetch(`/api/lightning?lat=${lat.toFixed(1)}&lon=${lon.toFixed(1)}`, { signal }).then((r) => r.json() as Promise<LiveLightning>);
+}
+
+/** The most active storm right now and its live strike count (the landing page), polled every minute. */
+export function useLightningHotspot() {
+  const [hot, setHot] = useState<LightningHotspot | null>(null);
+  useEffect(() => {
+    const ctrl = new AbortController();
+    const load = () =>
+      fetch("/api/lightning/hotspot", { signal: ctrl.signal })
+        .then((r) => r.json() as Promise<LightningHotspot>)
+        .then(setHot)
+        .catch(() => {
+          if (!ctrl.signal.aborted) setHot({ available: false, reason: "unreachable" });
+        });
+    load();
+    const id = setInterval(load, 60_000);
+    return () => {
+      ctrl.abort();
+      clearInterval(id);
+    };
+  }, []);
+  return hot;
 }
 
 /** Runs the lightning source and publishes strike stats + storm cells at a low rate. */

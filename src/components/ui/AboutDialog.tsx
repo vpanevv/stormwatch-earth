@@ -175,7 +175,8 @@ function AboutView({ onClose }: { onClose: () => void }) {
                   ["Local map", "OpenStreetMap", "live"],
                   ["Global clouds, temperature and wind fields", "A climate model (OpenWeather tiles with a key)", "model"],
                   ["Snow cover and snowfall away from radar", "The same climate model", "model"],
-                  ["Lightning strikes and storm cells", "A simulation of real storm climatology", "sim"],
+                  ["Lightning strike counts: the landing number, each place, each pin", "Xweather (Vaisala's global network), the storm found with Open-Meteo", "live"],
+                  ["Lightning flashes drawn on the globe, storm cells", "A simulation of real storm climatology", "sim"],
                 ]}
               />
               <P>
@@ -209,7 +210,7 @@ function AboutView({ onClose }: { onClose: () => void }) {
               <Facts
                 items={[
                   ["Radar gaps", "Many oceans and countries have no public radar. There the rain layer stays empty in live mode."],
-                  ["Lightning", "There is no free public lightning feed, so strikes are simulated from where storms usually form. Swapping in a licensed feed is one interface away."],
+                  ["Lightning", "Strike counts are live from Xweather, but its free plan only counts the last 5 minutes within 100 km of a point, and there is no free worldwide count. So the landing number is for the most active storm we can find, and the flashes on the globe are still simulated from where storms usually form."],
                   ["Global fields", "Without an OpenWeather key, the worldwide clouds, temperature, wind and snow are a model. The numbers for your selected place are real."],
                   ["Resolution", "From orbit the globe is about 5 km per pixel. Near your place it sharpens to about 0.5 km."],
                 ]}

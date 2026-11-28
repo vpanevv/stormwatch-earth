@@ -5,7 +5,7 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import type { Place } from "@/types/weather";
 import { useAppStore } from "@/store/useAppStore";
-import { useBootstrap, useLightningFeed, useWeatherSync } from "@/hooks/useDataFeeds";
+import { useBootstrap, useLightningFeed, useLiveLightningSync, useWeatherSync } from "@/hooks/useDataFeeds";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { TopBar } from "./ui/TopBar";
 import { LayerRail } from "./ui/LayerRail";
@@ -85,6 +85,7 @@ const chrome = {
 export function StormWatchApp() {
   useBootstrap();
   useWeatherSync();
+  useLiveLightningSync();
   useLightningFeed();
   usePersistedPlace();
   const desktop = useMediaQuery("(min-width: 1024px)");

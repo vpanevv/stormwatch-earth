@@ -7,7 +7,7 @@ import { useAppStore } from "@/store/useAppStore";
 import { radar, dbzToRate } from "@/lib/radar/manager";
 import { compass, formatLat, formatLon } from "@/lib/geo";
 import { codeGlyph, describeCode } from "@/lib/weatherCodes";
-import { fmtKm, fmtOffset, fmtTime } from "@/lib/format";
+import { fmtInt, fmtOffset, fmtTime } from "@/lib/format";
 import { precipRGB } from "@/lib/radar/decode";
 import { IconArrow } from "../icons";
 import { Metric, SectionHeader, Skeleton, SourceBadge } from "../primitives";
@@ -19,8 +19,7 @@ const LocalRadarMap = dynamic(() => import("./LocalRadarMap"), {
 
 export function Summary({ place: sel }: { place: Place }) {
   const weather = useAppStore((s) => s.weather);
-  const lightning = useAppStore((s) => s.lightning);
-  const win = useAppStore((s) => s.lightningWindow);
+  const liveL = useAppStore((s) => s.liveLightning);
   const radarVersion = useAppStore((s) => s.radarVersion);
   const time = useAppStore((s) => s.time);
   const live = useAppStore((s) => s.live);
@@ -109,13 +108,15 @@ export function Summary({ place: sel }: { place: Place }) {
               }
             />
             <Metric
-              label={`Lightning · ${win}`}
-              value={lightning.nearestKm !== null ? fmtKm(lightning.nearestKm) : "—"}
-              unit={lightning.nearestKm !== null ? "km" : undefined}
+              label={`Lightning · ${liveL?.available ? `${liveL.windowMin} min` : "live"}`}
+              value={liveL?.available ? fmtInt(liveL.strikes.count) : "—"}
+              unit={liveL?.available ? (liveL.strikes.count === 1 ? "strike" : "strikes") : undefined}
               sub={
-                lightning.nearestKm !== null && lightning.nearestBearing !== null
-                  ? `nearest strike ${compass(lightning.nearestBearing)} · ${lightning.within100km} within 100 km`
-                  : "no strikes in window"
+                liveL?.available
+                  ? `${liveL.strikes.count > 0 ? "within" : "none within"} ${liveL.strikes.radiusKm} km · Xweather`
+                  : liveL === null
+                    ? "checking…"
+                    : "live lightning unavailable"
               }
             />
             <Metric

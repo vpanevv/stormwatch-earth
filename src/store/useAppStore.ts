@@ -1,7 +1,7 @@
 "use client";
 
 import { create } from "zustand";
-import type { AppConfig, LatLon, Place, RadarIndex, StormCell, WeatherBundle } from "@/types/weather";
+import type { AppConfig, LatLon, LiveLightning, Place, RadarIndex, StormCell, WeatherBundle } from "@/types/weather";
 
 export type LayerId = "clouds" | "rain" | "snow" | "lightning" | "storms" | "temperature" | "wind";
 export type LightningWindow = "15m" | "1h" | "24h";
@@ -63,6 +63,8 @@ type State = {
   configReady: boolean;
   shareOpen: boolean;
   aboutOpen: boolean;
+  /** Live strikes around the selected place (Xweather); null until the first answer. */
+  liveLightning: LiveLightning | null;
   /** A pin dropped by clicking the globe (Watched-style): its card names the nearest town and offers its weather. */
   pin: DroppedPin | null;
   /** Screen space the UI panels cover (CSS px), so overlays on the globe stay clear of them. */
@@ -98,6 +100,7 @@ type Actions = {
   enter: () => void;
   setShareOpen: (b: boolean) => void;
   setAboutOpen: (b: boolean) => void;
+  setLiveLightning: (l: LiveLightning | null) => void;
   dropPin: (p: LatLon) => void;
   clearPin: () => void;
   setUiInsets: (i: State["uiInsets"]) => void;
@@ -128,6 +131,7 @@ export const useAppStore = create<State & Actions>()((set, get) => ({
   configReady: false,
   shareOpen: false,
   aboutOpen: false,
+  liveLightning: null,
   pin: null,
   uiInsets: { top: 0, right: 0, bottom: 0, left: 0 },
 
@@ -189,6 +193,7 @@ export const useAppStore = create<State & Actions>()((set, get) => ({
   enter: () => set({ entered: true }),
   setShareOpen: (shareOpen) => set({ shareOpen }),
   setAboutOpen: (aboutOpen) => set({ aboutOpen }),
+  setLiveLightning: (liveLightning) => set({ liveLightning }),
   dropPin: (p) => set({ pin: { id: Date.now(), lat: Math.round(p.lat * 1e5) / 1e5, lon: Math.round(p.lon * 1e5) / 1e5 } }),
   clearPin: () => set({ pin: null }),
   setUiInsets: (uiInsets) => {

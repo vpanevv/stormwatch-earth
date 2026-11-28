@@ -15,6 +15,7 @@ import { IconChevron, IconCrosshair, IconShare, IconDroplet, IconSnow, IconWind 
 import { Skeleton, SourceBadge } from "./primitives";
 import { SnowOverlay } from "./SnowOverlay";
 import { RainOverlay } from "./RainOverlay";
+import { strikeLine } from "./LiveLightning";
 
 type Tab = "48h" | "7d";
 const HOUR = 3_600_000;
@@ -103,6 +104,7 @@ function DeckHeader({
   compact: boolean;
 }) {
   const sel = useAppStore((s) => s.selection)!;
+  const strikes = strikeLine(useAppStore((s) => s.liveLightning), true);
   const today = w?.daily[0];
   return (
     <header className={`relative flex items-center gap-x-5 border-b border-line px-4 py-2.5 md:px-5 ${compact ? "flex-wrap gap-y-1" : ""}`}>
@@ -132,6 +134,7 @@ function DeckHeader({
               Feels {Math.round(w.current.feelsLike)}°
               {today && ` · H ${Math.round(today.tMax)}° L ${Math.round(today.tMin)}°`}
             </div>
+            {strikes && <div className="mt-0.5 font-mono text-[10px] text-accent">{strikes}</div>}
           </div>
         </div>
       ) : (

@@ -12,6 +12,8 @@ import { fmtInt } from "@/lib/format";
 import { IconCrosshair, IconSearch } from "./icons";
 import { KIND_LABEL } from "./SearchPanel";
 import { Brand, Divider } from "./Brand";
+import { LightningHero } from "./LiveLightning";
+import { useLightningHotspot } from "@/hooks/useDataFeeds";
 
 /**
  * The welcome page: an editorial hero over a slowly turning planet (layout and motion language after
@@ -89,8 +91,8 @@ function LandingView() {
   const enter = useAppStore((s) => s.enter);
   const globeReady = useAppStore((s) => s.globeReady);
   const radarIdx = useAppStore((s) => s.radar.data);
-  const storms = useAppStore((s) => s.storms);
-  const strikes = useAppStore((s) => s.lightning.total);
+  const hot = useLightningHotspot();
+  const storm = hot?.available ? hot : null;
   const resume = useAppStore((s) => s.selection);
   const geolocating = useAppStore((s) => s.geolocating);
   const now = useNow();
@@ -132,10 +134,8 @@ function LandingView() {
   }, []);
 
   const surprise = () => {
-    const live = storms
-      .filter((c) => c.intensity > 0.45)
-      .map<Place>((c) => ({ id: `storm-${c.id}`, name: "Active storm cell", context: `${c.strikesPerMin} strikes/min (simulated)`, kind: "coords", lat: c.lat, lon: c.lon }));
-    const pool = [...SURPRISES, ...live.slice(0, 3)];
+    // The live storm (Xweather) joins the pool when lightning is hitting it.
+    const pool = storm && storm.strikes.count > 0 ? [...SURPRISES, storm.place, storm.place] : SURPRISES;
     go(pool[(Math.random() * pool.length) | 0]);
   };
 
@@ -187,6 +187,14 @@ function LandingView() {
         </div>
       </header>
 
+      {/* the live lightning count: the page's headline number */}
+      <div className="pointer-events-auto absolute right-12 top-[15vh] hidden lg:block">
+        <LightningHero hot={hot} now={now} onWatch={() => storm && go(storm.place)} />
+      </div>
+      <div className="pointer-events-auto absolute left-4 top-[92px] lg:hidden">
+        <LightningHero compact hot={hot} now={now} onWatch={() => storm && go(storm.place)} />
+      </div>
+
       {/* hero column */}
       <section className="pointer-events-auto absolute inset-x-6 bottom-28 lg:bottom-auto lg:left-12 lg:right-auto lg:top-[13vh] lg:w-[min(780px,52vw)]">
         <div className="hidden items-center gap-4 font-mono text-[12px] tracking-[0.16em] text-mute sm:flex">
@@ -215,6 +223,12 @@ function LandingView() {
           transition={{ delay: 0.55, duration: 0.7 }}
           className="mt-3 max-w-[620px] font-display text-[14px] leading-snug sm:mt-5 sm:text-[17px] sm:leading-relaxed text-[#a4acb6] lg:mt-[3vh] lg:text-[clamp(16px,2.4vh,21px)]"
         >
+          {storm && storm.strikes.count > 0 && (
+            <span className="text-ink">
+              Right now, lightning has struck <span className="font-semibold text-accent">{fmtInt(storm.strikes.count)}&nbsp;times</span> in{" "}
+              {storm.windowMin}&nbsp;minutes near {storm.place.name}.{" "}
+            </span>
+          )}
           Enter any place on Earth. See its clouds, radar, snow and lightning on a live planet, and the forecast for the
           next&nbsp;7&nbsp;days.
         </motion.p>
@@ -348,7 +362,12 @@ function LandingView() {
               </div>
               <div className="text-mute">
                 {latest ? `LATEST ${new Date(latest).toISOString().slice(11, 16)}Z · ${Math.max(0, Math.round((now - latest) / 60_000))} MIN AGO` : "RADAR CONNECTING"}
-                <span className="hidden sm:inline"> · {fmtInt(strikes)} STRIKES/H (SIM)</span>
+                {storm && (
+                  <span className="hidden sm:inline">
+                    {" "}
+                    · <span className="text-accent">⚡ {fmtInt(storm.strikes.count)}</span> STRIKES / {storm.windowMin} MIN · XWEATHER
+                  </span>
+                )}
               </div>
             </>
           ) : (

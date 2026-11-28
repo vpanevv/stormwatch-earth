@@ -12,18 +12,27 @@ export function Brand({ compact = false, children }: { compact?: boolean; childr
   const setAboutOpen = useAppStore((s) => s.setAboutOpen);
   return (
     <div className="pointer-events-auto select-none">
-      <div className={`font-serif leading-none text-ink ${compact ? "text-[26px]" : "text-[34px]"}`}>
+      <div className={`font-serif leading-none text-ink ${compact ? "text-[26px]" : "text-[28px] sm:text-[34px]"}`}>
         StormWatch<span className="text-accent">.</span>
       </div>
       <nav
         className={`flex items-center whitespace-nowrap font-mono uppercase text-ink ${
-          compact ? "mt-1.5 gap-2.5 text-[10px] tracking-[0.12em]" : "mt-2.5 gap-3 text-[12px] tracking-[0.16em]"
+          compact
+            ? "mt-1.5 gap-2.5 text-[10px] tracking-[0.12em]"
+            : "mt-2 gap-2.5 text-[10px] tracking-[0.12em] sm:mt-2.5 sm:gap-3 sm:text-[12px] sm:tracking-[0.16em]"
         }`}
       >
         <button onClick={() => setAboutOpen(true)} className="flex items-center gap-2 uppercase transition-colors hover:text-accent">
-          {compact ? "How it works" : "How this works"}
+          {compact ? (
+            "How it works"
+          ) : (
+            <>
+              <span className="sm:hidden">How it works</span>
+              <span className="hidden sm:inline">How this works</span>
+            </>
+          )}
           <kbd
-            className={`flex items-center justify-center border border-white/50 text-ink ${compact ? "h-4 w-4 text-[9px]" : "h-[22px] w-[22px] text-[11px]"}`}
+            className={`flex items-center justify-center border border-white/50 text-ink ${compact ? "h-4 w-4 text-[9px]" : "h-4 w-4 text-[9px] sm:h-[22px] sm:w-[22px] sm:text-[11px]"}`}
           >
             ?
           </kbd>
@@ -31,7 +40,14 @@ export function Brand({ compact = false, children }: { compact?: boolean; childr
         {children}
         <Divider />
         <a href={REPO_URL} target="_blank" rel="noopener noreferrer" className="transition-colors hover:text-accent">
-          {compact ? "Source ↗" : "Open source ↗"}
+          {compact ? (
+            "Source ↗"
+          ) : (
+            <>
+              <span className="sm:hidden">Source ↗</span>
+              <span className="hidden sm:inline">Open source ↗</span>
+            </>
+          )}
         </a>
       </nav>
     </div>

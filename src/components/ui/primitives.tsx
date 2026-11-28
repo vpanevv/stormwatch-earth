@@ -11,6 +11,7 @@ const SOURCE_LABEL: Record<DataSource, { text: string; live: boolean }> = {
   blitzortung: { text: "Blitzortung", live: true },
   mock: { text: "Simulated", live: false },
   model: { text: "Model", live: false },
+  xweather: { text: "Xweather", live: true },
 };
 
 /** Every data block says where it came from — live feeds in green, synthetic in amber. */

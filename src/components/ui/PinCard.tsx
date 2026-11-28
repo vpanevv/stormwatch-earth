@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { WeatherBundle } from "@/types/weather";
+import type { LiveLightning, WeatherBundle } from "@/types/weather";
+import { fetchLiveLightning } from "@/hooks/useDataFeeds";
+import { strikeLine } from "./LiveLightning";
 import { useAppStore, type DroppedPin } from "@/store/useAppStore";
 import { selectPlace } from "@/lib/actions";
 import { formatLat, formatLon } from "@/lib/geo";
@@ -35,6 +37,7 @@ function Card({ pin }: { pin: DroppedPin }) {
   // undefined: still naming · null: nothing named here
   const [name, setName] = useState<PinName | null | undefined>(undefined);
   const [peek, setPeek] = useState<Peek | null>(null);
+  const [ltg, setLtg] = useState<LiveLightning | null>(null);
   const [busy, setBusy] = useState(false);
   const naming = useRef<Promise<PinName | null> | null>(null);
   const alive = useRef(true);
@@ -56,6 +59,8 @@ function Card({ pin }: { pin: DroppedPin }) {
       .then((r) => (r.ok ? (r.json() as Promise<WeatherBundle>) : null))
       .then((w) => w && setPeek({ temp: w.current.temperature, code: w.current.weatherCode, isDay: w.current.isDay }))
       .catch(() => undefined);
+    // Live strikes around the spot (Xweather), the same answer the forecast will show.
+    fetchLiveLightning(pin.lat, pin.lon, ctl.signal).then(setLtg, () => undefined);
     return () => ctl.abort();
   }, [pin.lat, pin.lon]);
 
@@ -169,6 +174,11 @@ function Card({ pin }: { pin: DroppedPin }) {
               <span className="text-mute">Open water · no town nearby</span>
             )}
           </div>
+          {ltg?.available && (
+            <div className={`mt-1 font-mono text-[11px] ${ltg.strikes.count > 0 ? "text-accent" : "text-faint"}`}>
+              {strikeLine(ltg) ?? `No lightning in the last ${ltg.windowMin} min within ${ltg.strikes.radiusKm} km`}
+            </div>
+          )}
           <div className="mt-1 h-[16px] font-mono text-[11px] text-faint">
             {peek && (
               <span className="text-mute">

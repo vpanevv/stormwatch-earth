@@ -21,7 +21,8 @@ export type DataSource =
   | "nominatim"
   | "blitzortung"
   | "mock"
-  | "model";
+  | "model"
+  | "xweather";
 
 export type CurrentWeather = {
   time: number; // epoch ms
@@ -120,4 +121,27 @@ export type StormCell = {
 export type AppConfig = {
   openweather: boolean;
   lightningSource: DataSource;
+  /** Xweather is configured: live strike counts for places and the landing page. */
+  liveLightning?: boolean;
 };
+
+/** Live strikes from Xweather within `radiusKm` of a point, over its window (the last 5 minutes on the free plan). */
+export type LiveStrikes = { count: number; cg: number; ic: number; from: number; to: number; radiusKm: number };
+
+export type LiveLightning =
+  | { available: true; source: "xweather"; windowMin: number; strikes: LiveStrikes; fetchedAt: number }
+  | { available: false; reason: string };
+
+/** The most active storm right now (landing page). */
+export type LightningHotspot =
+  | {
+      available: true;
+      source: "xweather";
+      windowMin: number;
+      place: Place;
+      strikes: LiveStrikes;
+      thunderstormPoints: number;
+      sampled: number;
+      fetchedAt: number;
+    }
+  | { available: false; reason: string };
