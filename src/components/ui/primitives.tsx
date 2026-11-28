@@ -46,6 +46,7 @@ export function Metric({
   sub,
   bar,
   barColor = "bg-white/60",
+  note,
 }: {
   label: string;
   value: ReactNode;
@@ -53,6 +54,8 @@ export function Metric({
   sub?: ReactNode;
   bar?: number;
   barColor?: string;
+  /** An extra line under the sub-line that may wrap (context, e.g. a typical value). */
+  note?: ReactNode;
 }) {
   return (
     <div className="min-w-0 border-t border-line pt-2.5">
@@ -67,6 +70,7 @@ export function Metric({
         </div>
       )}
       {sub && <div className="mt-1 truncate font-mono text-[11px] text-mute">{sub}</div>}
+      {note && <div className="mt-1.5 font-mono text-[10.5px] leading-snug text-ink/80">{note}</div>}
     </div>
   );
 }

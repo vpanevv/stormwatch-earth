@@ -9,6 +9,7 @@ vendored; their licenses travel with them in `node_modules`.
 | `public/textures/earth-topology.jpg` | [three-globe](https://github.com/vasturiano/three-globe) | MIT |
 | `public/places/` | Town list from [GeoNames](https://www.geonames.org), tiled by Watched | CC BY 4.0 |
 | `src/lib/places/`, `src/components/ui/PinCard.tsx`, globe shading in `src/components/globe/`, the landing and About page layouts | Adapted from [Watched](https://github.com/dev-Armaan/satellites) | MIT (below) |
+| `public/lightning/lisotd-v2.3/` | NASA LIS/OTD 0.5° High Resolution Monthly Climatology (HRMC) V2.3.2015, doi:10.5067/LIS/LIS-OTD/DATA311, from NASA's Global Hydrometeorology Resource Center DAAC; re-gridded to 8-bit log-scaled PNGs by `scripts/build-lightning-climatology.mjs` | NASA EOSDIS data: free to use, cite as given (EOSDIS Data Use and Citation Guidance) |
 | Instrument Sans, Instrument Serif, Geist | via Fontsource and the `geist` package | SIL OFL 1.1 |
 
 ## Watched — MIT License

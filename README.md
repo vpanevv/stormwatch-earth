@@ -69,7 +69,7 @@ never confused.
 | Radar | Rain and snow echoes, the last ~2 hours (RainViewer) | Precipitation further back than the radar archive |
 | Clouds | Cloud cover at the selected place | The global cloud field, unless an OpenWeather key is set |
 | Snow | Snowfall and snow depth at the place, radar snow | Snow cover and snowfall elsewhere, from a climate model |
-| Lightning | Strike counts within 100 km, the last 5 minutes (Xweather); the storm is found with Open-Meteo | The worldwide total (an estimate from NASA's LIS/OTD record, ~44 flashes/s by season and hour), the flashes drawn on the globe, the storm cells |
+| Lightning | Strike counts within 100 km, the last 5 minutes (Xweather); the storm is found with Open-Meteo; each place's typical lightning (NASA satellite climatology, an average) | The worldwide total (an estimate from NASA's LIS/OTD record, ~44 flashes/s by season and hour), the flashes drawn on the globe, the storm cells |
 
 **What it can't see.** Radar only exists where countries run it and share it, so oceans and much of Africa and Asia
 have none. The forecast is a model run, not an observation. The lightning is a stand-in drawn from where storms
@@ -194,7 +194,7 @@ docs/               architecture and the images on this page
 |:--|:--|
 | Weather | Forecast and current conditions from [Open-Meteo](https://open-meteo.com) ([CC BY 4.0](https://creativecommons.org/licenses/by/4.0/); the free tier is for non-commercial use). [OpenWeather](https://openweathermap.org) when a key is set. |
 | Radar | © [RainViewer](https://www.rainviewer.com). |
-| Lightning | Strike counts from [Xweather](https://www.xweather.com) (Vaisala). |
+| Lightning | Strike counts from [Xweather](https://www.xweather.com) (Vaisala). Typical lightning per place and month from NASA's LIS/OTD 0.5° High Resolution Monthly Climatology V2.3.2015 ([doi:10.5067/LIS/LIS-OTD/DATA311](https://doi.org/10.5067/LIS/LIS-OTD/DATA311)), NASA GHRC DAAC. |
 | Imagery | NASA's [GIBS](https://www.earthdata.nasa.gov/gibs), part of EOSDIS: Blue Marble Next Generation, and VIIRS on NOAA-20 and Suomi NPP. |
 | Places | The offline town list is built from [GeoNames](https://www.geonames.org) ([CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)), as tiled by Watched. [Open-Meteo](https://open-meteo.com), [Photon](https://photon.komoot.io) by komoot and [Nominatim](https://nominatim.org) answer the rest. Map data © [OpenStreetMap contributors](https://www.openstreetmap.org/copyright) (ODbL). |
 | Textures | [Solar System Scope](https://www.solarsystemscope.com/textures/) ([CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)), from NASA Blue Marble and Black Marble; resized and repacked by Watched. Elevation from [three-globe](https://github.com/vasturiano/three-globe) (MIT). |

@@ -33,6 +33,7 @@ const SOURCES: [string, string, string][] = [
   ["Place search and names", "Open-Meteo geocoder, Photon, OpenStreetMap Nominatim, GeoNames", "Live"],
   ["Global cloud, temperature and wind fields; snow cover away from radar", "A climate model in the app", "Modelled"],
   ["Lightning strikes worldwide (the home page's estimate)", "NASA's LIS/OTD satellite lightning record: ~44 flashes a second, by season and time of day", "Estimated"],
+  ["Typical lightning for each place and month", "NASA LIS/OTD satellite lightning climatology (1995–2014), GHRC DAAC", "Average"],
   ["Lightning flashes drawn on the globe, storm cells", "A simulation of where storms usually form", "Simulated"],
 ];
 
@@ -123,7 +124,8 @@ export default function HowItWorks() {
           44 flashes a second on average, more in the northern summer and in the late-afternoon hours over the
           Americas and Africa. Open any city and
           its own strike count appears next to the forecast, and the forecast panel flashes when lightning is hitting
-          nearby.
+          nearby. Next to it is what is normal there: NASA&apos;s 20-year satellite record of lightning, for the same
+          100 km and the same month, so a quiet day reads as quiet, and a storm in a usually calm place stands out.
         </p>
 
         <H2>Weather radar, clouds and snow on a 3D globe</H2>

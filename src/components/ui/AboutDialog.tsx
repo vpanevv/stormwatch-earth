@@ -177,6 +177,7 @@ function AboutView({ onClose }: { onClose: () => void }) {
                   ["Snow cover and snowfall away from radar", "The same climate model", "model"],
                   ["Lightning strike counts: the landing number, each place, each pin", "Xweather (Vaisala's global network), the storm found with Open-Meteo", "live"],
                   ["Lightning strikes worldwide (the landing's \u201cworldwide\u201d number)", "Estimated from NASA's LIS/OTD satellite record: ~44 flashes a second, by season and time of day", "model"],
+                  ["Typical lightning for a place (\u201cNASA typical\u201d in its panel)", "NASA LIS/OTD satellite lightning climatology, 1995\u20132014, by month", "model"],
                   ["Lightning flashes drawn on the globe, storm cells", "A simulation of real storm climatology", "sim"],
                 ]}
               />

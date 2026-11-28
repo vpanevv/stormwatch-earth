@@ -2,7 +2,8 @@
 
 import type { Place } from "@/types/weather";
 import dynamic from "next/dynamic";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { typicalLightning, type TypicalLightning } from "@/lib/lightning/climatology";
 import { useAppStore } from "@/store/useAppStore";
 import { radar, dbzToRate } from "@/lib/radar/manager";
 import { compass, formatLat, formatLon } from "@/lib/geo";
@@ -21,6 +22,18 @@ const LocalRadarMap = dynamic(() => import("./LocalRadarMap"), {
 export function Summary({ place: sel }: { place: Place }) {
   const weather = useAppStore((s) => s.weather);
   const liveL = useAppStore((s) => s.liveLightning);
+  // NASA's typical lightning here this month (LIS/OTD satellite climatology), next to the live count.
+  const [typ, setTyp] = useState<TypicalLightning | null>(null);
+  const offset = weather.data?.utcOffsetSeconds;
+  useEffect(() => {
+    setTyp(null);
+    if (offset === undefined) return;
+    let alive = true;
+    typicalLightning(sel.lat, sel.lon, offset).then((t) => alive && setTyp(t), () => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [sel.lat, sel.lon, offset]);
   const radarVersion = useAppStore((s) => s.radarVersion);
   const time = useAppStore((s) => s.time);
   const live = useAppStore((s) => s.live);
@@ -121,6 +134,20 @@ export function Summary({ place: sel }: { place: Place }) {
                     ? "checking…"
                     : "live lightning unavailable"
               }
+              note={
+                typ && (
+                  // Each phrase stays whole; a narrow panel breaks between them, never inside "12 / 5 min".
+                  <span
+                    className="block [&>span]:whitespace-nowrap"
+                    title="NASA LIS/OTD satellite lightning climatology, 1995–2014: average for this month over the same 100 km circle."
+                  >
+                    <span className="block text-accent-soft">NASA typical · {MONTHS[typ.month]}</span>
+                    <span>{fmtTypical(typ.per5min)} / 5 min</span> · <span>{typ.season} month</span>
+                    <br />
+                    <span>{fmtDensity(typ.perKm2Year)} flashes/km² a year</span>
+                  </span>
+                )
+              }
             />
             <Metric
               label="Snow"
@@ -152,3 +179,8 @@ export function Summary({ place: sel }: { place: Place }) {
     </section>
   );
 }
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+/** Average strikes per 5 min: "<0.1", "0.3", "4.2", "38". */
+const fmtTypical = (n: number) => (n < 0.05 ? "<0.1" : n < 10 ? n.toFixed(1) : Math.round(n).toLocaleString("en-US"));
+const fmtDensity = (n: number) => (n < 0.1 ? "<0.1" : n < 10 ? n.toFixed(1) : Math.round(n).toString());
