@@ -1,0 +1,7 @@
+# One address for search engines: the Netlify subdomain permanently redirects to the custom domain.
+# (www → apex is handled by Netlify's primary-domain setting.)
+[[redirects]]
+  from = "https://stormwatchearth.netlify.app/*"
+  to = "https://stormwatch.earth/:splat"
+  status = 301
+  force = true

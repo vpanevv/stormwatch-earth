@@ -8,6 +8,8 @@ import "server-only";
  * place per window, and the cost Xweather charges for each call (X-Cost-Tokens) is logged so the budget can be watched.
  * Keys stay on the server: XWEATHER_CLIENT_ID and XWEATHER_CLIENT_SECRET.
  */
+import { SITE_URL } from "@/lib/site";
+
 const ID = process.env.XWEATHER_CLIENT_ID?.trim() || "";
 const SECRET = process.env.XWEATHER_CLIENT_SECRET?.trim() || "";
 export const XWEATHER_ON = Boolean(ID && SECRET);
@@ -19,7 +21,7 @@ export const LIGHTNING_RADIUS_KM = 100;
 export const LIGHTNING_WINDOW_MIN = 5;
 
 /** Xweather keys are tied to a namespace (the site's domain); requests from the server say which site they're for. */
-const SITE = process.env.NEXT_PUBLIC_SITE_URL || process.env.URL || "https://stormwatch.earth";
+const SITE = SITE_URL;
 
 export type StrikeSummary = {
   /** Lightning pulses (strikes) detected within the radius during the window. */

@@ -1,10 +1,12 @@
 import type { MetadataRoute } from "next";
+import { DESCRIPTION, SHORT_NAME, SITE_NAME } from "@/lib/site";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "StormWatch Earth",
-    short_name: "StormWatch",
-    description: "Live radar, clouds, lightning and snow on a real-time 3D Earth, with a forecast for any place.",
+    name: SITE_NAME,
+    short_name: SHORT_NAME,
+    description: DESCRIPTION,
+    categories: ["weather", "utilities", "navigation"],
     start_url: "/",
     display: "standalone",
     background_color: "#020306",

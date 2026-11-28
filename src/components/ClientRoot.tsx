@@ -1,21 +1,16 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { StaticLanding } from "./StaticLanding";
 
 /**
- * The observatory is a WebGL + live-clock app with no meaningful server markup,
- * so it renders client-only. The server sends this lightweight shell instead.
+ * The observatory is a WebGL + live-clock app, so it renders client-only. The server sends the landing as plain HTML
+ * (StaticLanding) in its place: the same words, readable by crawlers and before any JavaScript has run.
  */
 const StormWatchApp = dynamic(() => import("./StormWatchApp").then((m) => m.StormWatchApp), {
   ssr: false,
-  loading: () => (
-    <div className="fixed inset-0 flex items-center justify-center bg-void">
-      <div className="w-64 text-center">
-        <div className="label">Acquiring orbit</div>
-        <div className="mt-3 h-px w-full bg-white/10" />
-      </div>
-    </div>
-  ),
+  // Server-rendered while the app loads: real landing content for crawlers and slow connections.
+  loading: () => <StaticLanding />,
 });
 
 export function ClientRoot() {

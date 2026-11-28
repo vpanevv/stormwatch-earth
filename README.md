@@ -159,6 +159,7 @@ node scripts/render-wordmark.mjs   # the wordmark images at the top of this page
 | `NOMINATIM_USER_AGENT` | Identifies the app to Nominatim, as its usage policy asks. |
 | `XWEATHER_CLIENT_ID`, `XWEATHER_CLIENT_SECRET` | Live lightning counts. A free [Xweather Developer](https://www.xweather.com/pricing) key (15,000 accesses a month); without it lightning shows as offline. |
 | `LIGHTNING_REFRESH_SECONDS`, `LIGHTNING_HOTSPOT_REFRESH_SECONDS` | Optional. How long a strike count is reused (600 s) and the landing storm (1200 s). The server logs each call's cost. |
+| `GOOGLE_SITE_VERIFICATION`, `BING_SITE_VERIFICATION` | Optional. Search Console / Bing Webmaster "HTML tag" verification codes. |
 | `NEXT_PUBLIC_SITE_URL` | Optional. The site's address for link previews; on Netlify it defaults to the site's URL. |
 
 | URL | |
